@@ -1,5 +1,4 @@
 # WURFL Microservice client for Rust
-
 ==============
 
 WURFL Microservice (by ScientiaMobile, Inc.) is a mobile device detection service that can quickly and accurately detect over 500 capabilities of visiting devices. It can differentiate between portable mobile devices, desktop devices, SmartTVs and any other types of devices that have a web browser.
