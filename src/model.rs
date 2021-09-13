@@ -3,7 +3,7 @@ use thiserror::Error;
 
 /// Holds info about WURFL microservice running server
 #[derive(Deserialize)]
-struct JSONInfoData {
+pub struct JSONInfoData {
     wurfl_api_version: String,
     wm_version: String,
     wurfl_info: String,
@@ -14,7 +14,7 @@ struct JSONInfoData {
 }
 
 /// Holds the detected device data received from WURFL Microservice server.
-struct JSONDeviceData {
+pub struct JSONDeviceData {
     capabilities: HashMap<String, String>,
     error: String,
     m_time: i64,

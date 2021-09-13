@@ -1,20 +1,20 @@
 const DEVICE_ID_CACHE_TYPE: &str = "dId-cache";
 const USERAGENT_CACHE_TYPE: &str = "ua-cache";
 
-struct WmClient {
+pub struct WmClient {
     _scheme: String,
     _host: String,
     _port: String,
     _base_uri: String,
 
     // These are the lists of all static or virtual that can be returned by the running wm server
-    static_caps: Vec<String>,
-    virtual_caps: Vec<String>,
+    pub static_caps: Vec<String>,
+    pub virtual_caps: Vec<String>,
 
     // Requested are used in the lookup requests, accessible via the SetRequested[...] functions
     requested_static_caps: Vec<String>,
     requested_virtual_caps: Vec<String>,
-    important_headers: Vec<String>,
+    pub important_headers: Vec<String>,
     // Internal caches
     _dev_id_cache: LruCache<String, JSONDeviceData>,
     // Maps device ID -> JSONDeviceData
@@ -89,10 +89,10 @@ impl WmClient {
             .call() {
             Ok(res) => {
                 let info_res = res.into_json();
-                if info_res.is_ok(){
-                    return Ok(info_res.unwrap());
+                return if info_res.is_ok() {
+                    Ok(info_res.unwrap())
                 } else {
-                    return Err(WmError{ msg: "Unable to create Wurfl microservice client: could not parse server info".to_string() });
+                    Err(WmError { msg: "Unable to create Wurfl microservice client: could not parse server info".to_string() })
                 }
             }
             Err(ierr) => {
@@ -103,8 +103,8 @@ impl WmClient {
 
     fn create_url(&self, path: &str) -> String {
         if !self._base_uri.is_empty() {
-            return format!("{}://{}:{}/{}", self._scheme.as_str(),self._host.as_str(),self._port.as_str(),self._base_uri.as_str());
+            return format!("{}://{}:{}/{}{}", self._scheme.as_str(),self._host.as_str(),self._port.as_str(),self._base_uri.as_str(), path);
         }
-        return format!("{}://{}:{}", self._scheme.as_str(),self._host.as_str(),self._port.as_str());
+        return format!("{}://{}:{}{}", self._scheme.as_str(),self._host.as_str(),self._port.as_str(), path);
     }
 }
