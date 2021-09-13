@@ -4,12 +4,12 @@ use thiserror::Error;
 /// Holds info about WURFL microservice running server
 #[derive(Deserialize)]
 pub struct JSONInfoData {
-    wurfl_api_version: String,
-    wm_version: String,
-    wurfl_info: String,
-    important_headers: Vec<String>,
-    static_caps: Vec<String>,
-    virtual_caps: Vec<String>,
+    pub wurfl_api_version: String,
+    pub wm_version: String,
+    pub wurfl_info: String,
+    pub important_headers: Vec<String>,
+    pub static_caps: Vec<String>,
+    pub virtual_caps: Vec<String>,
     ltime: String,
 }
 
