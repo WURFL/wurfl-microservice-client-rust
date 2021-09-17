@@ -89,3 +89,24 @@ fn has_virtual_capability_test(){
     assert!(client.has_virtual_capability("complete_device_name"));
     assert!(!client.has_virtual_capability("unknown_vcap"));
 }
+
+#[test]
+fn lookup_useragent_test_ok(){
+    let cl_res = create_test_client();
+    assert!(cl_res.is_ok());
+    let client = cl_res.unwrap();
+    let ua = "Mozilla/5.0 (Linux; Android 7.0; SAMSUNG SM-G950F Build/NRD90M) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/5.2 Chrome/51.0.2704.106 Mobile Safari/537.36";
+    let device_res = client.lookup_useragent(ua.to_string());
+    assert!(device_res.is_ok());
+    let device = device_res.unwrap();
+    assert!(device.capabilities.len() > 0);
+    assert_eq!(device.error, "");
+    assert!(device.ltime.len() > 0);
+    assert!(device.mtime > 0);
+    assert_eq!("SM-G950F", device.capabilities.get("model_name").unwrap().as_str());
+    assert_eq!("false", device.capabilities.get("is_robot").unwrap().as_str());
+    assert_eq!("false", device.capabilities.get("is_full_desktop").unwrap().as_str());
+
+
+
+}
