@@ -69,3 +69,23 @@ fn get_info_test() {
     assert!(info.static_caps.len() > 0);
     assert!(info.virtual_caps.len() > 0);
 }
+
+#[test]
+fn has_static_capability_test(){
+    let cl_res = create_test_client();
+    assert!(cl_res.is_ok());
+    let client = cl_res.unwrap();
+    assert!(client.has_static_capability("brand_name"));
+    assert!(client.has_static_capability("is_tablet"));
+    assert!(!client.has_static_capability("unknown_static_cap"));
+}
+
+#[test]
+fn has_virtual_capability_test(){
+    let cl_res = create_test_client();
+    assert!(cl_res.is_ok());
+    let client = cl_res.unwrap();
+    assert!(client.has_virtual_capability("form_factor"));
+    assert!(client.has_virtual_capability("complete_device_name"));
+    assert!(!client.has_virtual_capability("unknown_vcap"));
+}

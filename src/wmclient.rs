@@ -16,19 +16,19 @@ pub struct WmClient {
     requested_virtual_caps: Vec<String>,
     pub important_headers: Vec<String>,
     // Internal caches
-    _dev_id_cache: LruCache<String, JSONDeviceData>,
+    _dev_id_cache: Mutex<LruCache<String, JSONDeviceData>>,
     // Maps device ID -> JSONDeviceData
-    _ua_cache: LruCache<String, JSONDeviceData>,
+    _ua_cache: Mutex<LruCache<String, JSONDeviceData>>,
     // Maps concat headers (mainly UA) -> JSONDeviceData
     // Stores the result of time consuming call getAllMakeModel
-    _make_models: Vec<JSONMakeModel>,
+    _make_models: Mutex<Vec<JSONMakeModel>>,
     // List of device manufacturers
-    _device_makes: Vec<String>,
+    _device_makes: Mutex<Vec<String>>,
     _device_makes_map: HashMap<String, Vec<JSONModelMktName>>,
     // Map that associates os name to JSONDeviceOsVersions objects
     _device_os_versions_map: HashMap<String, Vec<String>>,
     // List of all device OSes
-    _device_oses: Vec<String>,
+    _device_oses: Mutex<Vec<String>>,
     _ltime: String,
 }
 
@@ -57,13 +57,13 @@ impl WmClient {
             requested_static_caps: req_st_cap,
             requested_virtual_caps: req_v_cap,
             important_headers: i_h,
-            _dev_id_cache: d_id_cache,
-            _ua_cache: ua_cache,
-            _make_models: mk_md,
-            _device_makes: d_mk,
+            _dev_id_cache: Mutex::new(d_id_cache),
+            _ua_cache: Mutex::new(ua_cache),
+            _make_models: Mutex::new(mk_md),
+            _device_makes: Mutex::new(d_mk),
             _device_makes_map: d_mm,
             _device_os_versions_map: d_ovm,
-            _device_oses: d_oses,
+            _device_oses: Mutex::new(d_oses),
             _ltime: "0".to_string(),
         };
 
@@ -83,6 +83,20 @@ impl WmClient {
         }
     }
 
+    /// Returns the version of this Rust client API
+    pub fn get_api_version(&self) -> &str {
+        return "1.0.0"
+    }
+
+    pub fn has_static_capability(&self, cap_name: &str) -> bool {
+        return self.static_caps.contains(&cap_name.to_string());
+    }
+
+    pub fn has_virtual_capability(&self, vcap_name: &str) -> bool {
+        return self.virtual_caps.contains(&vcap_name.to_string());
+    }
+
+    /// Returns info about the running WURFL Microservice server to which this client is connected
     pub fn get_info(&self) -> Result<JSONInfoData,WmError> {
         let url = self.create_url("/v2/getinfo/json");
         let info_res = match ureq::get(url.as_str()).set("content-type", "application/json")
@@ -99,6 +113,48 @@ impl WmClient {
                 return Err(WmError{ msg: format!(" Unable to create Wurfl microservice client: {}", ierr.to_string())});
             }
         };
+    }
+
+    fn clear_caches(&mut self) {
+        let ua_lock_res = self._ua_cache.lock();
+        if ua_lock_res.is_ok() {
+            let mut ua_cache = ua_lock_res.unwrap();
+            if  ua_cache.len() > 0 {
+                ua_cache.clear();
+            }
+        }
+
+        let dev_lock_res = self._dev_id_cache.lock();
+        if dev_lock_res.is_ok(){
+            let mut dev_id_cache = dev_lock_res.unwrap();
+            if dev_id_cache.len() > 0 {
+                dev_id_cache.clear();
+            }
+        }
+
+        let mk_md_lock_res = self._make_models.lock();
+        if mk_md_lock_res.is_ok() {
+            let mut make_models = mk_md_lock_res.unwrap();
+            make_models.clear();
+        }
+
+        let dev_makes_lock_res = self._device_makes.lock();
+        if dev_makes_lock_res.is_ok(){
+            let mut device_makes = dev_makes_lock_res.unwrap();
+            device_makes.clear();
+            self._device_makes_map.clear();
+        }
+
+        let dev_os_lock_res = self._device_oses.lock();
+        if dev_os_lock_res.is_ok(){
+            let mut device_oses = dev_os_lock_res.unwrap();
+            device_oses.clear();
+        }
+    }
+
+    /// Sets the new cache size. Changing cache size will result in a cache purge.
+    pub fn set_cache_size(&mut self, ua_max_entries: usize) {
+        self._ua_cache = Mutex::new(LruCache::new(ua_max_entries));
     }
 
     fn create_url(&self, path: &str) -> String {
