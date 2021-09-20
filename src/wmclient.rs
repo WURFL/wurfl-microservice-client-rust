@@ -36,18 +36,18 @@ pub struct WmClient {
 impl WmClient {
     /// Creates a new instance of the WURFL microservice client
     pub fn new(scheme: &str, host: &str, port: &str, base_uri: &str) -> Result<WmClient, WmError> {
-        let mut d_id_cache = LruCache::new(20000);
-        let mut ua_cache = lru::LruCache::new(200000);
-        let mut st_cap = vec![];
-        let mut req_st_cap = vec![];
-        let mut req_v_cap = vec![];
-        let mut v_cap = vec![];
-        let mut i_h = vec![];
-        let mut mk_md = vec![];
-        let mut d_mk = vec![];
-        let mut d_mm = HashMap::new();
-        let mut d_ovm = HashMap::new();
-        let mut d_oses = vec![];
+        let d_id_cache = LruCache::new(20000);
+        let ua_cache = lru::LruCache::new(200000);
+        let st_cap = vec![];
+        let req_st_cap = vec![];
+        let req_v_cap = vec![];
+        let v_cap = vec![];
+        let i_h = vec![];
+        let mk_md = vec![];
+        let d_mk = vec![];
+        let d_mm = HashMap::new();
+        let d_ovm = HashMap::new();
+        let d_oses = vec![];
         let mut wm_client = WmClient {
             _scheme: scheme.to_string(),
             _host: host.to_string(),
@@ -143,7 +143,7 @@ impl WmClient {
         let json_request = Request::new(headers.clone(),
                                         self.requested_static_caps.clone(),
                                         self.requested_virtual_caps.clone(), None);
-        let result = self._internalLookup(json_request, "/v2/lookupuseragent/json".to_string());
+        let result = self._internal_lookup(json_request, "/v2/lookupuseragent/json".to_string());
         if result.is_ok() {
             let device = result.unwrap();
 
@@ -256,6 +256,29 @@ impl WmClient {
         }
     }
 
+    // get_actual_cache_sizes returns the values of cache size. The first value being the device-id based cache, the second value being
+    // the size of the headers-based one
+    pub fn get_actual_cache_sizes(&self) -> (usize, usize) {
+        let mut d_size: usize = 0;
+        let mut ua_size: usize = 0;
+
+        // Lock the caches with their own mutex, so that other threads cannot clear it while another is reading its size
+        let guard_res = self._dev_id_cache.lock();
+        if guard_res.is_ok() {
+            let guard = guard_res.unwrap();
+            d_size = guard.len();
+            std::mem::drop(guard);
+        }
+
+        let guard_res_2 = self._ua_cache.lock();
+        if guard_res_2.is_ok() {
+            let guard_2 = guard_res_2.unwrap();
+            ua_size = guard_2.len();
+            drop(guard_2);
+        }
+        return (d_size, ua_size)
+    }
+
     /// SetRequestedStaticCapabilities - set list of standard static capabilities to return
     pub fn set_requested_static_capabilities(&mut self, cap_list: Option<Vec<&str>>) {
 
@@ -322,7 +345,7 @@ impl WmClient {
         self.clear_caches();
     }
 
-    fn _internalLookup(&self, request: Request, path: String) -> Result<JSONDeviceData, WmError> {
+    fn _internal_lookup(&self, request: Request, path: String) -> Result<JSONDeviceData, WmError> {
         let url = self.create_url(path.as_str());
         let json_req = ureq::json!(request);
         let resp_res = ureq::post(url.as_str())

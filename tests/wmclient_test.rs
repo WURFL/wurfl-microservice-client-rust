@@ -125,7 +125,7 @@ fn lookup_empty_useragent_test() {
 
 
 #[test]
-fn lookup_useragent_with_specific_caps() {
+fn lookup_useragent_with_specific_caps_test() {
     let cl_res = create_test_client();
     assert!(cl_res.is_ok());
     let mut client = cl_res.unwrap();
@@ -142,7 +142,7 @@ fn lookup_useragent_with_specific_caps() {
 }
 
 #[test]
-fn testSetRequestedCapabilities() {
+fn test_set_requested_capabilities() {
     let cl_res = create_test_client();
     assert!(cl_res.is_ok());
     let mut client = cl_res.unwrap();
@@ -169,4 +169,38 @@ fn testSetRequestedCapabilities() {
     let device3 = device_res2.unwrap();
     // resetting all required caps arrays, ALL available caps are returned
     assert!(device3.capabilities.len() > 10);
+}
+
+#[test]
+fn reset_cache_on_requested_caps_change_test() {
+    // Checks that cache is cleared whenever a reset of the requested static and/or virtual capabilities occur
+    let client_res = create_test_client();
+    assert!(client_res.is_ok());
+    let mut client = client_res.unwrap();
+    client.set_cache_size(2000);
+    let req_caps: Vec<&str> = vec!{"brand_name", "is_wireless_device", "is_app"};
+    client.set_requested_static_capabilities(Some(req_caps.clone()));
+    let ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 10_2_1 like Mac OS X) AppleWebKit/602.4.6 (KHTML, like Gecko) Version/10.0 Mobile/14D27 Safari/602.1";
+    let device_res = client.lookup_useragent(ua.to_string());
+    assert!(device_res.is_ok());
+
+    let mut sizes = client.get_actual_cache_sizes();
+    assert_eq!(0, sizes.0);
+    assert_eq!(1, sizes.1);
+
+    client.set_requested_capabilities(Some(req_caps));
+    sizes = client.get_actual_cache_sizes();
+    assert_eq!(0, sizes.0);
+    assert_eq!(0, sizes.1);
+
+    let _ =client.lookup_useragent(ua.to_string());
+    sizes = client.get_actual_cache_sizes();
+    assert_eq!(1, sizes.1);
+    let req_caps2 = vec!{"brand_name", "is_wireless_device"};
+    let req_vcaps = vec!{"is_app", "is_ios"};
+    client.set_requested_static_capabilities(Some(req_caps2));
+    client.set_requested_virtual_capabilities(Some(req_vcaps));
+    sizes = client.get_actual_cache_sizes();
+    assert_eq!(0, sizes.0);
+    assert_eq!(0, sizes.1);
 }
