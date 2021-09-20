@@ -148,7 +148,7 @@ impl WmClient {
             let device = result.unwrap();
 
             // check if server WURFL.xml has been updated and, if so, clear caches
-            //c.clearCachesIfNeeded(deviceData.Ltime) // TODO
+            //self.clear_caches_if_needed(device.ltime) // TODO -- does not compile!
 
             // we need to lock when writing since cache is not thread safe
             let response_cache_lock = self._ua_cache.lock();
@@ -160,6 +160,68 @@ impl WmClient {
             return Ok(device);
         } else {
             return Err(result.err().unwrap());
+        }
+    }
+
+    /// LookupHeaders - detects a device and returns its data in JSON format
+    pub fn lookup_headers(&self, in_headers: HashMap<String, String>) -> Result<JSONDeviceData, WmError> {
+        let mut headers: HashMap<String, String> = HashMap::new();
+
+        // first: make all headers lowercase
+        let mut lower_key_map: HashMap<String, String> = HashMap::new();
+        for item in in_headers {
+            lower_key_map.insert(item.0.to_lowercase(), item.1);
+        }
+
+        // copy important headers with the headers name properly cased.
+        let ihs = self.important_headers.clone();
+        for ih_name in ihs {
+            let h_value = lower_key_map.get(ih_name.to_lowercase().as_str());
+            if h_value.is_some() && !h_value.unwrap().is_empty() {
+                headers.insert(ih_name, h_value.unwrap().to_string());
+            }
+        }
+        // Create the request object
+        let mut request = Request::new(headers.clone(), self.requested_static_caps.clone(), self.requested_virtual_caps.clone(), None);
+
+        // Do a cache lookup
+        let cache_lock = self._ua_cache.lock();
+        if cache_lock.is_ok() {
+            let mut guard = cache_lock.unwrap();
+            let device_opt = guard.get(&self.get_user_agent_cache_key(headers.clone()).unwrap());
+            if device_opt.is_some() {
+                let device_ref = device_opt.unwrap();
+                let device = JSONDeviceData {
+                    capabilities: device_ref.capabilities.clone(),
+                    error: device_ref.error.clone(),
+                    mtime: device_ref.mtime.clone(),
+                    ltime: device_ref.ltime.clone(),
+                };
+                return Ok(device);
+            }
+            // drop the guard will unlock cache
+            drop(guard);
+        }
+
+        request.requested_caps = self.requested_static_caps.clone();
+        request.requested_vcaps = self.requested_virtual_caps.clone();
+
+
+        let device_res = self._internal_lookup(request, "/v2/lookuprequest/json".to_string());
+        if device_res.is_ok() {
+            let device = device_res.unwrap();
+            // check if server WURFL.xml has been updated and, if so, clear caches
+            //c.clearCachesIfNeeded(deviceData.Ltime)
+
+            let response_cache_lock = self._ua_cache.lock();
+            if response_cache_lock.is_ok() {
+                let mut guard = response_cache_lock.unwrap();
+                guard.put(self.get_user_agent_cache_key(headers.clone()).unwrap(), device.clone());
+                drop(guard);
+            }
+            return Ok(device);
+        } else {
+            return Err(device_res.err().unwrap());
         }
     }
 
@@ -279,7 +341,7 @@ impl WmClient {
         return (d_size, ua_size)
     }
 
-    /// SetRequestedStaticCapabilities - set list of standard static capabilities to return
+    /// set_requested_static_capabilities - set list of standard static capabilities to return
     pub fn set_requested_static_capabilities(&mut self, cap_list: Option<Vec<&str>>) {
 
         if cap_list.is_none(){
@@ -300,7 +362,7 @@ impl WmClient {
         }
     }
 
-    /// SetRequestedVirtualCapabilities - set list of standard virtual capabilities to return
+    /// set_requested_virtual_capabilities - set list of standard virtual capabilities to return
     pub fn set_requested_virtual_capabilities(&mut self, vcap_list: Option<Vec<&str>>) {
 
         if vcap_list.is_none(){
@@ -376,6 +438,13 @@ impl WmClient {
             }
         } else {
             return Err(WmError { msg: resp_res.err().unwrap().to_string() });
+        }
+    }
+
+    fn _clear_caches_if_needed(&mut self, ltime: String) {
+        if ltime.len() > 0 && self._ltime != ltime {
+            self._ltime = ltime;
+            self.clear_caches();
         }
     }
 }

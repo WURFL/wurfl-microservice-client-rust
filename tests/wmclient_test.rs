@@ -1,6 +1,7 @@
 use std::env;
 
 use wmclient::*;
+use std::collections::HashMap;
 
 fn create_test_client() -> Result<WmClient, WmError> {
     let mut u_host = "localhost".to_string();
@@ -203,4 +204,26 @@ fn reset_cache_on_requested_caps_change_test() {
     sizes = client.get_actual_cache_sizes();
     assert_eq!(0, sizes.0);
     assert_eq!(0, sizes.1);
+}
+
+#[test]
+fn lookup_headers_ok() {
+    let client_res = create_test_client();
+    assert!(client_res.is_ok());
+    let client = client_res.unwrap();
+    // Let's create test headers
+    let mut headers: HashMap<String,String> = HashMap::new();
+    headers.insert("X-Requested-With".to_string(),"json_client".to_string());
+    headers.insert("Content-Type".to_string(), "application/json".to_string());
+    headers.insert("Accept-Encoding".to_string(), "gzip, deflate".to_string());
+    headers.insert("X-UCBrowser-Device-UA".to_string(), "Mozilla/5.0 (SAMSUNG; SAMSUNG-GT-S5253/S5253DDJI7; U; Bada/1.0; en-us) AppleWebKit/533.1 (KHTML, like Gecko) Dolfin/2.0 Mobile WQVGA SMM-MMS/1.2.0 OPN-B".to_string());
+    headers.insert("User-Agent".to_string(), "Mozilla/5.0 (Nintendo Switch; WebApplet) AppleWebKit/601.6 (KHTML, like Gecko) NF/4.0.0.5.9 NintendoBrowser/5.1.0.13341".to_string());
+
+    let device_res = client.lookup_headers(headers);
+    assert!(device_res.is_ok());
+    let device = device_res.unwrap();
+    assert!(device.capabilities.len() > 0);
+    assert_eq!("Samsung", device.capabilities.get("brand_name").unwrap().as_str());
+    assert_eq!("GT-S5253", device.capabilities.get("model_name").unwrap().as_str());
+    assert_eq!("false", device.capabilities.get("is_robot").unwrap().as_str());
 }
