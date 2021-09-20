@@ -257,7 +257,7 @@ impl WmClient {
     }
 
     /// SetRequestedStaticCapabilities - set list of standard static capabilities to return
-    pub fn set_requested_static_capabilities(&mut self, cap_list: Option<Vec<String>>) {
+    pub fn set_requested_static_capabilities(&mut self, cap_list: Option<Vec<&str>>) {
 
         if cap_list.is_none(){
             self.requested_static_caps = None;
@@ -267,8 +267,8 @@ impl WmClient {
 
     let mut cap_names: Vec<String> =  vec![];
         for name in cap_list.unwrap(){
-            if self.has_static_capability(name.as_str()){
-                cap_names.push(name);
+            if self.has_static_capability(name){
+                cap_names.push(name.to_string());
         }
     }
         if cap_names.len() > 0 {
@@ -278,7 +278,7 @@ impl WmClient {
     }
 
     /// SetRequestedVirtualCapabilities - set list of standard virtual capabilities to return
-    pub fn set_requested_virtual_capabilities(&mut self, vcap_list: Option<Vec<String>>) {
+    pub fn set_requested_virtual_capabilities(&mut self, vcap_list: Option<Vec<&str>>) {
 
         if vcap_list.is_none(){
             self.requested_virtual_caps = None;
@@ -288,8 +288,8 @@ impl WmClient {
 
         let mut virtual_cap_names: Vec<String> =  vec![];
         for name in vcap_list.unwrap(){
-            if self.has_virtual_capability(name.as_str()){
-                virtual_cap_names.push(name);
+            if self.has_virtual_capability(name){
+                virtual_cap_names.push(name.to_string());
             }
         }
         if virtual_cap_names.len() > 0 {
@@ -299,7 +299,7 @@ impl WmClient {
     }
 
     /// SetRequestedCapabilities - set the given capability names to the set they belong
-    pub fn set_requested_capabilities(&mut self, cap_list: Option<Vec<String>>) {
+    pub fn set_requested_capabilities(&mut self, cap_list: Option<Vec<&str>>) {
         if cap_list.is_none() {
             self.requested_static_caps = None;
             self.requested_virtual_caps = None;
@@ -310,10 +310,10 @@ impl WmClient {
         let mut cap_names: Vec<String> = vec![];
         let mut vcap_names: Vec<String> = vec![];
         for name in cap_list.unwrap() {
-            if self.has_static_capability(name.as_str()) {
-                cap_names.push(name);
-            } else if self.has_virtual_capability(name.as_str()) {
-                vcap_names.push(name);
+            if self.has_static_capability(name) {
+                cap_names.push(name.to_string());
+            } else if self.has_virtual_capability(name) {
+                vcap_names.push(name.to_string());
             }
         }
 
