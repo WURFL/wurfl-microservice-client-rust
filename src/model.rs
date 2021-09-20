@@ -45,13 +45,13 @@ struct  JSONDeviceOsVersions {
 #[derive(Debug, Serialize)]
 struct Request {
     lookup_headers: HashMap<String, String>,
-    requested_caps: Vec<String>,
-    requested_vcaps: Vec<String>,
+    requested_caps: Option<Vec<String>>,
+    requested_vcaps: Option<Vec<String>>,
     wurfl_id: Option<String>,
 }
 
 impl Request {
-    pub fn new(lh: HashMap<String, String>, req_caps: Vec<String>, req_vcaps: Vec<String>, wid: Option<String>) -> Request {
+    pub fn new(lh: HashMap<String, String>, req_caps: Option<Vec<String>>, req_vcaps: Option<Vec<String>>, wid: Option<String>) -> Request {
         return Request {
             lookup_headers: lh,
             requested_caps: req_caps,

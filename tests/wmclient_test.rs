@@ -1,18 +1,18 @@
-use wmclient::*;
 use std::env;
 
-fn create_test_client() -> Result<WmClient, WmError> {
+use wmclient::*;
 
-    let mut u_host= "localhost".to_string();
-    let mut u_port= "8080".to_string();
+fn create_test_client() -> Result<WmClient, WmError> {
+    let mut u_host = "localhost".to_string();
+    let mut u_port = "8080".to_string();
     let mut host = u_host.as_str();
     let mut port = u_port.as_str();
     let env_host = env::var("WM_HOST");
     let env_port = env::var("WM_PORT");
-    if env_host.is_ok(){
-    u_host = env_host.unwrap().to_owned();
-    host = u_host.as_str();
-}
+    if env_host.is_ok() {
+        u_host = env_host.unwrap().to_owned();
+        host = u_host.as_str();
+    }
     if env_port.is_ok() {
         u_port = env_port.unwrap().to_owned();
         port = u_port.as_str();
@@ -22,13 +22,13 @@ fn create_test_client() -> Result<WmClient, WmError> {
 
 #[test]
 fn create_ok_test() {
-    let mut u_host= "localhost".to_string();
-    let mut u_port= "8080".to_string();
+    let mut u_host = "localhost".to_string();
+    let mut u_port = "8080".to_string();
     let mut host = u_host.as_str();
     let mut port = u_port.as_str();
     let env_host = env::var("WM_HOST");
     let env_port = env::var("WM_PORT");
-    if env_host.is_ok(){
+    if env_host.is_ok() {
         u_host = env_host.unwrap().to_owned();
         host = u_host.as_str();
     }
@@ -45,7 +45,7 @@ fn create_ok_test() {
 }
 
 #[test]
-fn  create_with_server_down_test() {
+fn create_with_server_down_test() {
     let res = WmClient::new("http", "localhost", "18080", "");
     assert!(res.is_err());
 }
@@ -71,7 +71,7 @@ fn get_info_test() {
 }
 
 #[test]
-fn has_static_capability_test(){
+fn has_static_capability_test() {
     let cl_res = create_test_client();
     assert!(cl_res.is_ok());
     let client = cl_res.unwrap();
@@ -81,7 +81,7 @@ fn has_static_capability_test(){
 }
 
 #[test]
-fn has_virtual_capability_test(){
+fn has_virtual_capability_test() {
     let cl_res = create_test_client();
     assert!(cl_res.is_ok());
     let client = cl_res.unwrap();
@@ -91,7 +91,7 @@ fn has_virtual_capability_test(){
 }
 
 #[test]
-fn lookup_useragent_test_ok(){
+fn lookup_useragent_test_ok() {
     let cl_res = create_test_client();
     assert!(cl_res.is_ok());
     let client = cl_res.unwrap();
@@ -106,7 +106,37 @@ fn lookup_useragent_test_ok(){
     assert_eq!("SM-G950F", device.capabilities.get("model_name").unwrap().as_str());
     assert_eq!("false", device.capabilities.get("is_robot").unwrap().as_str());
     assert_eq!("false", device.capabilities.get("is_full_desktop").unwrap().as_str());
+}
+
+#[test]
+fn lookup_empty_useragent_test() {
+    let cl_res = create_test_client();
+    assert!(cl_res.is_ok());
+    let client = cl_res.unwrap();
+    let device_res = client.lookup_useragent("".to_string());
+    assert!(device_res.is_ok());
+    let device = device_res.unwrap();
+    assert!(device.capabilities.len() > 0);
+    assert_eq!(device.error, "");
+    assert!(device.ltime.len() > 0);
+    assert!(device.mtime > 0);
+    assert_eq!("generic", device.capabilities.get("wurfl_id").unwrap().as_str());
+}
 
 
-
+#[test]
+fn lookup_useragent_with_specific_caps() {
+    let cl_res = create_test_client();
+    assert!(cl_res.is_ok());
+    let mut client = cl_res.unwrap();
+    let req_caps = vec! {"brand_name".to_string(), "marketing_name".to_string(), "is_full_desktop".to_string(), "model_name".to_string()};
+    client.set_requested_capabilities(Some(req_caps));
+    let ua = "Mozilla/5.0 (Nintendo Switch; WebApplet) AppleWebKit/601.6 (KHTML, like Gecko) NF/4.0.0.5.9 NintendoBrowser/5.1.0.13341".to_string();
+    let device_res = client.lookup_useragent(ua);
+    assert!(device_res.is_ok());
+    let device = device_res.unwrap();
+    assert_eq!(device.capabilities.len(), 5);
+    assert_eq!("Nintendo", device.capabilities.get("brand_name").unwrap().as_str());
+    assert_eq!("Switch", device.capabilities.get("model_name").unwrap().as_str());
+    assert_eq!("false", device.capabilities.get("is_full_desktop").unwrap().as_str());
 }

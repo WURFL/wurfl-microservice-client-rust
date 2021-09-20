@@ -13,8 +13,8 @@ pub struct WmClient {
     pub virtual_caps: Vec<String>,
 
     // Requested are used in the lookup requests, accessible via the SetRequested[...] functions
-    requested_static_caps: Vec<String>,
-    requested_virtual_caps: Vec<String>,
+    requested_static_caps: Option<Vec<String>>,
+    requested_virtual_caps: Option<Vec<String>>,
     pub important_headers: Vec<String>,
     // Internal caches
     _dev_id_cache: Mutex<LruCache<String, JSONDeviceData>>,
@@ -55,8 +55,8 @@ impl WmClient {
             _base_uri: base_uri.to_string(),
             static_caps: st_cap,
             virtual_caps: v_cap,
-            requested_static_caps: req_st_cap,
-            requested_virtual_caps: req_v_cap,
+            requested_static_caps: Some(req_st_cap),
+            requested_virtual_caps: Some(req_v_cap),
             important_headers: i_h,
             _dev_id_cache: Mutex::new(d_id_cache),
             _ua_cache: Mutex::new(ua_cache),
@@ -254,6 +254,72 @@ impl WmClient {
                 return Err(WmError { msg });
             }
         }
+    }
+
+    /// SetRequestedStaticCapabilities - set list of standard static capabilities to return
+    pub fn set_requested_static_capabilities(&mut self, cap_list: Option<Vec<String>>) {
+
+        if cap_list.is_none(){
+            self.requested_static_caps = None;
+            self.clear_caches();
+            return;
+        }
+
+    let mut cap_names: Vec<String> =  vec![];
+        for name in cap_list.unwrap(){
+            if self.has_static_capability(name.as_str()){
+                cap_names.push(name);
+        }
+    }
+        if cap_names.len() > 0 {
+            self.requested_static_caps = Some(cap_names);
+            self.clear_caches();
+        }
+    }
+
+    /// SetRequestedVirtualCapabilities - set list of standard virtual capabilities to return
+    pub fn set_requested_virtual_capabilities(&mut self, vcap_list: Option<Vec<String>>) {
+
+        if vcap_list.is_none(){
+            self.requested_virtual_caps = None;
+            self.clear_caches();
+            return;
+        }
+
+        let mut virtual_cap_names: Vec<String> =  vec![];
+        for name in vcap_list.unwrap(){
+            if self.has_virtual_capability(name.as_str()){
+                virtual_cap_names.push(name);
+            }
+        }
+        if virtual_cap_names.len() > 0 {
+            self.requested_virtual_caps = Some(virtual_cap_names);
+            self.clear_caches();
+        }
+    }
+
+    /// SetRequestedCapabilities - set the given capability names to the set they belong
+    pub fn set_requested_capabilities(&mut self, cap_list: Option<Vec<String>>) {
+        if cap_list.is_none() {
+            self.requested_static_caps = None;
+            self.requested_virtual_caps = None;
+            self.clear_caches();
+            return;
+        }
+
+        let mut cap_names: Vec<String> = vec![];
+        let mut vcap_names: Vec<String> = vec![];
+        for name in cap_list.unwrap() {
+            if self.has_static_capability(name.as_str()) {
+                cap_names.push(name);
+            } else if self.has_virtual_capability(name.as_str()) {
+                vcap_names.push(name);
+            }
+        }
+
+        self.requested_static_caps = Some(cap_names);
+        self.requested_virtual_caps = Some(vcap_names);
+        self.clear_caches();
     }
 
     fn _internalLookup(&self, request: Request, path: String) -> Result<JSONDeviceData, WmError> {
