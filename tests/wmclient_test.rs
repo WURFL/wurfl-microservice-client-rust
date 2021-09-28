@@ -227,3 +227,63 @@ fn lookup_headers_ok() {
     assert_eq!("GT-S5253", device.capabilities.get("model_name").unwrap().as_str());
     assert_eq!("false", device.capabilities.get("is_robot").unwrap().as_str());
 }
+
+#[test]
+fn test_lookup_headers_with_specific_caps() {
+    let client_res = create_test_client();
+    assert!(client_res.is_ok());
+    let mut client = client_res.unwrap();
+    let req_caps: Vec<&str> = vec!{"brand_name", "is_full_desktop", "is_robot", "model_name"};
+    client.set_requested_capabilities(Some(req_caps));
+    // Let's create test headers
+    let mut headers: HashMap<String,String> = HashMap::new();
+    headers.insert("X-Requested-With".to_string(),"json_client".to_string());
+    headers.insert("Content-Type".to_string(), "application/json".to_string());
+    headers.insert("Accept-Encoding".to_string(), "gzip, deflate".to_string());
+    headers.insert("User-Agent".to_string(), "Mozilla/5.0 (Nintendo Switch; WebApplet) AppleWebKit/601.6 (KHTML, like Gecko) NF/4.0.0.5.9 NintendoBrowser/5.1.0.13341".to_string());
+
+    let device_res = client.lookup_headers(headers);
+    assert!(device_res.is_ok());
+    let device = device_res.unwrap();
+    assert_eq!(device.capabilities.len(), 5);
+    assert_eq!("Nintendo", device.capabilities.get("brand_name").unwrap().as_str());
+    assert_eq!("Switch", device.capabilities.get("model_name").unwrap().as_str());
+    assert_eq!("false", device.capabilities.get("is_robot").unwrap().as_str());
+}
+
+#[test]
+fn test_lookup_headers_with_mixed_case() {
+    let client_res = create_test_client();
+    assert!(client_res.is_ok());
+    let client = client_res.unwrap();
+    // Let's create test headers
+    let mut headers: HashMap<String,String> = HashMap::new();
+    headers.insert("X-Requested-With".to_string(),"json_client".to_string());
+    headers.insert("CoNtent-TypE".to_string(), "application/json".to_string());
+    headers.insert("accepT-ENcoDing".to_string(), "gzip, deflate".to_string());
+    headers.insert("X-UCBrowser-Device-UA".to_string(), "Mozilla/5.0 (SAMSUNG; SAMSUNG-GT-S5253/S5253DDJI7; U; Bada/1.0; en-us) AppleWebKit/533.1 (KHTML, like Gecko) Dolfin/2.0 Mobile WQVGA SMM-MMS/1.2.0 OPN-B".to_string());
+    headers.insert("UseR-AgEnt".to_string(), "Mozilla/5.0 (Nintendo Switch; WebApplet) AppleWebKit/601.6 (KHTML, like Gecko) NF/4.0.0.5.9 NintendoBrowser/5.1.0.13341".to_string());
+
+    let device_res = client.lookup_headers(headers);
+    assert!(device_res.is_ok());
+    let device = device_res.unwrap();
+    assert!(device.capabilities.len() > 0);
+    assert_eq!("Samsung", device.capabilities.get("brand_name").unwrap().as_str());
+    assert_eq!("GT-S5253", device.capabilities.get("model_name").unwrap().as_str());
+    assert_eq!("false", device.capabilities.get("is_robot").unwrap().as_str());
+}
+
+#[test]
+fn test_lookup_headers_with_empty_header_map() {
+    let client_res = create_test_client();
+    assert!(client_res.is_ok());
+    let client = client_res.unwrap();
+    // Passing an empty map should result in the creation of an empty request object, thus in a "generic" device detection...
+    let mut headers: HashMap<String,String> = HashMap::new();
+
+    let device_res = client.lookup_headers(headers);
+    assert!(device_res.is_ok());
+    let device = device_res.unwrap();
+    assert!(device.capabilities.len() > 0);;
+    assert_eq!("generic", device.capabilities.get("wurfl_id").unwrap().as_str());
+}
