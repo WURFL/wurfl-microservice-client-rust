@@ -140,7 +140,7 @@ impl WmClient {
             drop(guard);
         }
 
-        let json_request = Request::new(headers.clone(),
+        let json_request = Request::new(Some(headers.clone()),
                                         self.requested_static_caps.clone(),
                                         self.requested_virtual_caps.clone(), None);
         let result = self._internal_lookup(json_request, "/v2/lookupuseragent/json".to_string());
@@ -155,6 +155,51 @@ impl WmClient {
             if response_cache_lock.is_ok() {
                 let mut guard = response_cache_lock.unwrap();
                 guard.put(self.get_user_agent_cache_key(headers.clone()).unwrap(), device.clone());
+                drop(guard);
+            }
+            return Ok(device);
+        } else {
+            return Err(result.err().unwrap());
+        }
+    }
+
+    /// lookup_device_id - Searches WURFL device data using its wurfl_id value
+    pub fn lookup_device_id(&self, device_id: String) -> Result<JSONDeviceData, WmError> {
+
+        // First: cache lookup
+        let cache_lock = self._dev_id_cache.lock();
+        if cache_lock.is_ok() {
+            let mut guard = cache_lock.unwrap();
+            let device_opt = guard.get(&device_id);
+            if device_opt.is_some() {
+                let device_ref = device_opt.unwrap();
+                let device = JSONDeviceData{
+                    capabilities: device_ref.capabilities.clone(),
+                    error: device_ref.error.clone(),
+                    mtime: device_ref.mtime.clone(),
+                    ltime: device_ref.ltime.clone()
+                };
+                return Ok(device);
+            }
+            // drop the guard will unlock cache
+            drop(guard);
+        }
+
+        let json_request = Request::new(None,
+                                        self.requested_static_caps.clone(),
+                                        self.requested_virtual_caps.clone(), Some(device_id.clone()));
+        let result = self._internal_lookup(json_request, "/v2/lookupdeviceid/json".to_string());
+        if result.is_ok() {
+            let device = result.unwrap();
+
+            // check if server WURFL.xml has been updated and, if so, clear caches
+            //self.clear_caches_if_needed(device.ltime) // TODO -- does not compile!
+
+            // we need to lock when writing since cache is not thread safe
+            let response_cache_lock = self._dev_id_cache.lock();
+            if response_cache_lock.is_ok() {
+                let mut guard = response_cache_lock.unwrap();
+                guard.put(device_id, device.clone());
                 drop(guard);
             }
             return Ok(device);
@@ -182,7 +227,7 @@ impl WmClient {
             }
         }
         // Create the request object
-        let mut request = Request::new(headers.clone(), self.requested_static_caps.clone(), self.requested_virtual_caps.clone(), None);
+        let mut request = Request::new(Some(headers.clone()), self.requested_static_caps.clone(), self.requested_virtual_caps.clone(), None);
 
         // Do a cache lookup
         let cache_lock = self._ua_cache.lock();

@@ -287,3 +287,22 @@ fn test_lookup_headers_with_empty_header_map() {
     assert!(device.capabilities.len() > 0);;
     assert_eq!("generic", device.capabilities.get("wurfl_id").unwrap().as_str());
 }
+
+#[test]
+fn test_single_lookup_device_id() {
+    let client_res = create_test_client();
+    assert!(client_res.is_ok());
+    let client = client_res.unwrap();
+    _internal_test_lookup_device_id(client);
+}
+
+// we reuse this for several tests
+fn _internal_test_lookup_device_id(client: WmClient){
+    let device_res = client.lookup_device_id("nokia_generic_series40".to_string());
+    assert!(device_res.is_ok());
+    let device = device_res.unwrap();
+    assert!(device.capabilities.len() > 0);
+    assert_eq!("true", device.capabilities.get("is_mobile").unwrap().as_str());
+    assert_eq!("Feature Phone", device.capabilities.get("form_factor").unwrap().as_str());
+}
+
