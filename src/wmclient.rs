@@ -1,5 +1,5 @@
-const DEVICE_ID_CACHE_TYPE: &str = "dId-cache";
-const USERAGENT_CACHE_TYPE: &str = "ua-cache";
+pub const DEVICE_ID_CACHE_TYPE: &str = "dId-cache";
+pub const USERAGENT_CACHE_TYPE: &str = "ua-cache";
 const DEFAULT_CONTENT_TYPE: &str = "application/json";
 
 pub struct WmClient {
@@ -17,9 +17,7 @@ pub struct WmClient {
     requested_virtual_caps: Option<Vec<String>>,
     pub important_headers: Vec<String>,
     // Internal caches
-    _dev_id_cache: Mutex<LruCache<String, JSONDeviceData>>,
-    // Maps device ID -> JSONDeviceData
-    _ua_cache: Mutex<LruCache<String, JSONDeviceData>>,
+    _cache: Cache,
     // Maps concat headers (mainly UA) -> JSONDeviceData
     // Stores the result of time consuming call getAllMakeModel
     _make_models: Mutex<Vec<JSONMakeModel>>,
@@ -36,8 +34,6 @@ pub struct WmClient {
 impl WmClient {
     /// Creates a new instance of the WURFL microservice client
     pub fn new(scheme: &str, host: &str, port: &str, base_uri: &str) -> Result<WmClient, WmError> {
-        let d_id_cache = LruCache::new(20000);
-        let ua_cache = lru::LruCache::new(200000);
         let st_cap = vec![];
         let req_st_cap = vec![];
         let req_v_cap = vec![];
@@ -58,8 +54,7 @@ impl WmClient {
             requested_static_caps: Some(req_st_cap),
             requested_virtual_caps: Some(req_v_cap),
             important_headers: i_h,
-            _dev_id_cache: Mutex::new(d_id_cache),
-            _ua_cache: Mutex::new(ua_cache),
+            _cache: Cache::new(50000),
             _make_models: Mutex::new(mk_md),
             _device_makes: Mutex::new(d_mk),
             _device_makes_map: d_mm,
@@ -116,28 +111,21 @@ impl WmClient {
     }
 
     // LookupUserAgent - Searches WURFL device data using the given user-agent for detection
-    pub fn lookup_useragent(&self, user_agent: String) -> Result<JSONDeviceData, WmError> {
+    pub fn lookup_useragent(&mut self, user_agent: String) -> Result<JSONDeviceData, WmError> {
 
         // First: cache lookup
         let mut headers = HashMap::new();
         headers.insert("User-Agent".to_string(), user_agent);
-
-        let cache_lock = self._ua_cache.lock();
-        if cache_lock.is_ok() {
-            let mut guard = cache_lock.unwrap();
-            let device_opt = guard.get(&self.get_user_agent_cache_key(headers.clone()).unwrap());
-            if device_opt.is_some() {
-                let device_ref = device_opt.unwrap();
-                let device = JSONDeviceData{
-                    capabilities: device_ref.capabilities.clone(),
-                    error: device_ref.error.clone(),
-                    mtime: device_ref.mtime.clone(),
-                    ltime: device_ref.ltime.clone()
-                };
-                return Ok(device);
-            }
-            // drop the guard will unlock cache
-            drop(guard);
+        let device_opt = self._cache.get(USERAGENT_CACHE_TYPE.to_string(), self.get_user_agent_cache_key(headers.clone()).unwrap());
+        if device_opt.is_some() {
+            let device_ref = device_opt.unwrap();
+            let device = JSONDeviceData {
+                capabilities: device_ref.capabilities.clone(),
+                error: device_ref.error.clone(),
+                mtime: device_ref.mtime.clone(),
+                ltime: device_ref.ltime.clone(),
+            };
+            return Ok(device);
         }
 
         let json_request = Request::new(Some(headers.clone()),
@@ -148,15 +136,8 @@ impl WmClient {
             let device = result.unwrap();
 
             // check if server WURFL.xml has been updated and, if so, clear caches
-            //self.clear_caches_if_needed(device.ltime) // TODO -- does not compile!
-
-            // we need to lock when writing since cache is not thread safe
-            let response_cache_lock = self._ua_cache.lock();
-            if response_cache_lock.is_ok() {
-                let mut guard = response_cache_lock.unwrap();
-                guard.put(self.get_user_agent_cache_key(headers.clone()).unwrap(), device.clone());
-                drop(guard);
-            }
+            self._clear_caches_if_needed(device.ltime.clone());
+            self._cache.put(USERAGENT_CACHE_TYPE.to_string(), self.get_user_agent_cache_key(headers.clone()).unwrap(), device.clone());
             return Ok(device);
         } else {
             return Err(result.err().unwrap());
@@ -164,25 +145,19 @@ impl WmClient {
     }
 
     /// lookup_device_id - Searches WURFL device data using its wurfl_id value
-    pub fn lookup_device_id(&self, device_id: String) -> Result<JSONDeviceData, WmError> {
+    pub fn lookup_device_id(&mut self, device_id: String) -> Result<JSONDeviceData, WmError> {
 
         // First: cache lookup
-        let cache_lock = self._dev_id_cache.lock();
-        if cache_lock.is_ok() {
-            let mut guard = cache_lock.unwrap();
-            let device_opt = guard.get(&device_id);
-            if device_opt.is_some() {
-                let device_ref = device_opt.unwrap();
-                let device = JSONDeviceData{
-                    capabilities: device_ref.capabilities.clone(),
-                    error: device_ref.error.clone(),
-                    mtime: device_ref.mtime.clone(),
-                    ltime: device_ref.ltime.clone()
-                };
-                return Ok(device);
-            }
-            // drop the guard will unlock cache
-            drop(guard);
+        let device_opt = self._cache.get(DEVICE_ID_CACHE_TYPE.to_string(), device_id.clone());
+        if device_opt.is_some() {
+            let device_ref = device_opt.unwrap();
+            let device = JSONDeviceData {
+                capabilities: device_ref.capabilities.clone(),
+                error: device_ref.error.clone(),
+                mtime: device_ref.mtime.clone(),
+                ltime: device_ref.ltime.clone(),
+            };
+            return Ok(device);
         }
 
         let json_request = Request::new(None,
@@ -193,15 +168,9 @@ impl WmClient {
             let device = result.unwrap();
 
             // check if server WURFL.xml has been updated and, if so, clear caches
-            //self.clear_caches_if_needed(device.ltime) // TODO -- does not compile!
+            self._clear_caches_if_needed(device.ltime.clone());
 
-            // we need to lock when writing since cache is not thread safe
-            let response_cache_lock = self._dev_id_cache.lock();
-            if response_cache_lock.is_ok() {
-                let mut guard = response_cache_lock.unwrap();
-                guard.put(device_id, device.clone());
-                drop(guard);
-            }
+            self._cache.put(DEVICE_ID_CACHE_TYPE.to_string(), device_id.clone(), device.clone());
             return Ok(device);
         } else {
             return Err(result.err().unwrap());
@@ -230,22 +199,17 @@ impl WmClient {
         let mut request = Request::new(Some(headers.clone()), self.requested_static_caps.clone(), self.requested_virtual_caps.clone(), None);
 
         // Do a cache lookup
-        let cache_lock = self._ua_cache.lock();
-        if cache_lock.is_ok() {
-            let mut guard = cache_lock.unwrap();
-            let device_opt = guard.get(&self.get_user_agent_cache_key(headers.clone()).unwrap());
-            if device_opt.is_some() {
-                let device_ref = device_opt.unwrap();
-                let device = JSONDeviceData {
-                    capabilities: device_ref.capabilities.clone(),
-                    error: device_ref.error.clone(),
-                    mtime: device_ref.mtime.clone(),
-                    ltime: device_ref.ltime.clone(),
-                };
-                return Ok(device);
-            }
-            // drop the guard will unlock cache
-            drop(guard);
+        let device_opt = self._cache.get(USERAGENT_CACHE_TYPE.to_string(), self.get_user_agent_cache_key(headers.clone()).unwrap());
+
+        if device_opt.is_some(){
+            let d = device_opt.unwrap();
+            let device = JSONDeviceData{
+                capabilities: d.capabilities.clone(),
+                error: d.error.clone(),
+                mtime: d.mtime.clone(),
+                ltime: d.ltime.clone()
+            };
+            return Ok(device);
         }
 
         request.requested_caps = self.requested_static_caps.clone();
@@ -257,13 +221,7 @@ impl WmClient {
             let device = device_res.unwrap();
             // check if server WURFL.xml has been updated and, if so, clear caches
             //c.clearCachesIfNeeded(deviceData.Ltime)
-
-            let response_cache_lock = self._ua_cache.lock();
-            if response_cache_lock.is_ok() {
-                let mut guard = response_cache_lock.unwrap();
-                guard.put(self.get_user_agent_cache_key(headers.clone()).unwrap(), device.clone());
-                drop(guard);
-            }
+            self._cache.put(USERAGENT_CACHE_TYPE.to_string(), self.get_user_agent_cache_key(headers.clone()).unwrap(),  device.clone());
             return Ok(device);
         } else {
             return Err(device_res.err().unwrap());
@@ -271,21 +229,7 @@ impl WmClient {
     }
 
     fn clear_caches(&mut self) {
-        let ua_lock_res = self._ua_cache.lock();
-        if ua_lock_res.is_ok() {
-            let mut ua_cache = ua_lock_res.unwrap();
-            if ua_cache.len() > 0 {
-                ua_cache.clear();
-            }
-        }
-
-        let dev_lock_res = self._dev_id_cache.lock();
-        if dev_lock_res.is_ok() {
-            let mut dev_id_cache = dev_lock_res.unwrap();
-            if dev_id_cache.len() > 0 {
-                dev_id_cache.clear();
-            }
-        }
+        self._cache.clear();
 
         let mk_md_lock_res = self._make_models.lock();
         if mk_md_lock_res.is_ok() {
@@ -309,7 +253,7 @@ impl WmClient {
 
     /// Sets the new cache size. Changing cache size will result in a cache purge.
     pub fn set_cache_size(&mut self, ua_max_entries: usize) {
-        self._ua_cache = Mutex::new(LruCache::new(ua_max_entries));
+        self._cache = Cache::new(ua_max_entries);
     }
 
     fn create_url(&self, path: &str) -> String {
@@ -361,29 +305,6 @@ impl WmClient {
                 return Err(WmError { msg });
             }
         }
-    }
-
-    // get_actual_cache_sizes returns the values of cache size. The first value being the device-id based cache, the second value being
-    // the size of the headers-based one
-    pub fn get_actual_cache_sizes(&self) -> (usize, usize) {
-        let mut d_size: usize = 0;
-        let mut ua_size: usize = 0;
-
-        // Lock the caches with their own mutex, so that other threads cannot clear it while another is reading its size
-        let guard_res = self._dev_id_cache.lock();
-        if guard_res.is_ok() {
-            let guard = guard_res.unwrap();
-            d_size = guard.len();
-            std::mem::drop(guard);
-        }
-
-        let guard_res_2 = self._ua_cache.lock();
-        if guard_res_2.is_ok() {
-            let guard_2 = guard_res_2.unwrap();
-            ua_size = guard_2.len();
-            drop(guard_2);
-        }
-        return (d_size, ua_size)
     }
 
     /// set_requested_static_capabilities - set list of standard static capabilities to return
@@ -488,8 +409,14 @@ impl WmClient {
 
     fn _clear_caches_if_needed(&mut self, ltime: String) {
         if ltime.len() > 0 && self._ltime != ltime {
-            self._ltime = ltime;
+            self._ltime = ltime.to_string();
             self.clear_caches();
         }
+    }
+
+    // get_actual_cache_sizes returns the values of cache size. The first value being the device-id based cache, the second value being
+    // the size of the headers-based one
+    pub fn get_actual_cache_sizes(&self) -> (usize, usize) {
+        return self._cache.get_actual_sizes();
     }
 }
