@@ -296,6 +296,50 @@ fn test_single_lookup_device_id() {
     _internal_test_lookup_device_id(client);
 }
 
+#[test]
+fn test_get_all_oses(){
+    let client_res = create_test_client();
+    assert!(client_res.is_ok());
+    let client = client_res.unwrap();
+    let device_os_list_res = client.get_all_oses();
+    assert!(device_os_list_res.is_ok());
+    let os_list = device_os_list_res.unwrap();
+    assert!(os_list.len() > 0);
+    /*
+    for os in os_list {
+        println!("{}", os);
+    }*/
+}
+
+#[test]
+fn test_get_all_versions_for_os(){
+    let client_res = create_test_client();
+    assert!(client_res.is_ok());
+    let client = client_res.unwrap();
+    let os_versions_res = client.get_all_versions_for_os("iOS");
+    assert!(os_versions_res.is_ok());
+    let os_versions = os_versions_res.unwrap();
+    assert!(os_versions.len() > 0);
+    /*
+    for v in os_versions {
+        println!("{}", v);
+    }*/
+}
+
+#[test]
+fn test_get_all_versions_for_wrong_os_name(){
+    let client_res = create_test_client();
+    assert!(client_res.is_ok());
+    let client = client_res.unwrap();
+    // Gotcha: Apple is not an OS name
+    let os_versions_res = client.get_all_versions_for_os("Apple");
+    assert!(os_versions_res.is_err());
+    let err = os_versions_res.err().unwrap();
+    assert!(err.msg.len() > 0);
+    assert!(err.msg.contains("Apple"));
+    assert!(err.msg.contains("does not exist"));
+}
+
 // we reuse this for several tests
 fn _internal_test_lookup_device_id(mut client: WmClient){
     let device_res = client.lookup_device_id("nokia_generic_series40".to_string());

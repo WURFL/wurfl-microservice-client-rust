@@ -25,7 +25,7 @@ pub struct WmClient {
     _device_makes: Mutex<Vec<String>>,
     _device_makes_map: HashMap<String, Vec<JSONModelMktName>>,
     // Map that associates os name to JSONDeviceOsVersions objects
-    _device_os_versions_map: HashMap<String, Vec<String>>,
+    _device_os_versions_map: Mutex<HashMap<String, Vec<String>>>,
     // List of all device OSes
     _device_oses: Mutex<Vec<String>>,
     _ltime: String,
@@ -58,7 +58,7 @@ impl WmClient {
             _make_models: Mutex::new(mk_md),
             _device_makes: Mutex::new(d_mk),
             _device_makes_map: d_mm,
-            _device_os_versions_map: d_ovm,
+            _device_os_versions_map: Mutex::new(d_ovm),
             _device_oses: Mutex::new(d_oses),
             _ltime: "0".to_string(),
         };
@@ -201,13 +201,13 @@ impl WmClient {
         // Do a cache lookup
         let device_opt = self._cache.get(USERAGENT_CACHE_TYPE.to_string(), self.get_user_agent_cache_key(headers.clone()).unwrap());
 
-        if device_opt.is_some(){
+        if device_opt.is_some() {
             let d = device_opt.unwrap();
-            let device = JSONDeviceData{
+            let device = JSONDeviceData {
                 capabilities: d.capabilities.clone(),
                 error: d.error.clone(),
                 mtime: d.mtime.clone(),
-                ltime: d.ltime.clone()
+                ltime: d.ltime.clone(),
             };
             return Ok(device);
         }
@@ -221,7 +221,7 @@ impl WmClient {
             let device = device_res.unwrap();
             // check if server WURFL.xml has been updated and, if so, clear caches
             //c.clearCachesIfNeeded(deviceData.Ltime)
-            self._cache.put(USERAGENT_CACHE_TYPE.to_string(), self.get_user_agent_cache_key(headers.clone()).unwrap(),  device.clone());
+            self._cache.put(USERAGENT_CACHE_TYPE.to_string(), self.get_user_agent_cache_key(headers.clone()).unwrap(), device.clone());
             return Ok(device);
         } else {
             return Err(device_res.err().unwrap());
@@ -309,19 +309,18 @@ impl WmClient {
 
     /// set_requested_static_capabilities - set list of standard static capabilities to return
     pub fn set_requested_static_capabilities(&mut self, cap_list: Option<Vec<&str>>) {
-
-        if cap_list.is_none(){
+        if cap_list.is_none() {
             self.requested_static_caps = None;
             self.clear_caches();
             return;
         }
 
-    let mut cap_names: Vec<String> =  vec![];
-        for name in cap_list.unwrap(){
-            if self.has_static_capability(name){
+        let mut cap_names: Vec<String> = vec![];
+        for name in cap_list.unwrap() {
+            if self.has_static_capability(name) {
                 cap_names.push(name.to_string());
+            }
         }
-    }
         if cap_names.len() > 0 {
             self.requested_static_caps = Some(cap_names);
             self.clear_caches();
@@ -330,16 +329,15 @@ impl WmClient {
 
     /// set_requested_virtual_capabilities - set list of standard virtual capabilities to return
     pub fn set_requested_virtual_capabilities(&mut self, vcap_list: Option<Vec<&str>>) {
-
-        if vcap_list.is_none(){
+        if vcap_list.is_none() {
             self.requested_virtual_caps = None;
             self.clear_caches();
             return;
         }
 
-        let mut virtual_cap_names: Vec<String> =  vec![];
-        for name in vcap_list.unwrap(){
-            if self.has_virtual_capability(name){
+        let mut virtual_cap_names: Vec<String> = vec![];
+        for name in vcap_list.unwrap() {
+            if self.has_virtual_capability(name) {
                 virtual_cap_names.push(name.to_string());
             }
         }
@@ -394,9 +392,9 @@ impl WmClient {
                 } else {
                     let serde_err = device_res.err();
                     if serde_err.is_some() {
-                        return Err(WmError{ msg: serde_err.unwrap().to_string() });
+                        return Err(WmError { msg: serde_err.unwrap().to_string() });
                     } else {
-                        return Err(WmError{msg: "Unable to parse JSON response".to_string() })
+                        return Err(WmError { msg: "Unable to parse JSON response".to_string() });
                     }
                 }
             } else {
@@ -414,9 +412,138 @@ impl WmClient {
         }
     }
 
-    // get_actual_cache_sizes returns the values of cache size. The first value being the device-id based cache, the second value being
-    // the size of the headers-based one
+    /// get_actual_cache_sizes returns the values of cache size. The first value being the device-id based cache, the second value being
+    /// the size of the headers-based one
     pub fn get_actual_cache_sizes(&self) -> (usize, usize) {
         return self._cache.get_actual_sizes();
+    }
+
+    /// get_all_oses returns a vec<String> of all devices device_os capabilities in WM server
+    pub fn get_all_oses(&self) -> Result<Vec<String>, WmError> {
+        let os_data = self._load_device_os_data();
+        if os_data.is_some() {
+            let wm_err = os_data.unwrap();
+            return Err(wm_err);
+        }
+
+        let os_guard = self._device_oses.lock();
+        if os_guard.is_ok() {
+            let vec = os_guard.unwrap();
+            let ret_val = vec.to_vec();
+            return Ok(ret_val);
+        } else {
+            let guard_err = os_guard.err().unwrap();
+            return Err(WmError { msg: format!("Cannot retrieve device OS list: {}", guard_err.to_string()) });
+        }
+    }
+
+    pub fn get_all_versions_for_os(&self, os_name: &str) -> Result<Vec<String>, WmError> {
+        let mut os_versions: Vec<String> = Vec::new();
+        let os_data = self._load_device_os_data();
+        if os_data.is_some() {
+            let wm_err = os_data.unwrap();
+            return Err(wm_err);
+        }
+
+        let os_ver_map_guard = self._device_os_versions_map.lock();
+        if os_ver_map_guard.is_ok() {
+            let os_ver_map = os_ver_map_guard.unwrap();
+            if os_ver_map.contains_key(os_name) {
+                let os_vers_from_map = os_ver_map.get(os_name).unwrap();
+                for val in os_vers_from_map {
+                    if "" != val.as_str() {
+                        os_versions.push(val.to_string());
+                    }
+                }
+                os_versions.sort();
+                return Ok(os_versions.clone());
+            } else {
+                return Err(WmError { msg: format!("Error getting data from WM server: {} does not exist or has no versions", os_name) });
+            }
+        } else {
+            let guard_err = os_ver_map_guard.err().unwrap();
+            return Err(WmError { msg: format!("Cannot retrieve device OS versions list: {}", guard_err.to_string()) });
+        }
+    }
+
+
+    fn _load_device_os_data(&self) -> Option<WmError> {
+        let os_guard = self._device_oses.lock();
+        if os_guard.is_ok() {
+            let os_vec = os_guard.unwrap();
+            if !os_vec.is_empty() {
+                return None;
+            }
+        }
+
+        // this struct is a vector holding pairs of os name ("Android") and version ("10.0")
+        let mut os_version_pairs: Vec<JSONDeviceOsVersions> = Vec::with_capacity(1000);
+
+        let result = self.internal_get("/v2/alldeviceosversions/json");
+        match result {
+            Ok(res) => {
+                let res_string = res.into_string();
+                if res_string.is_ok() {
+                    let os_vers_str = res_string.unwrap();
+                    let _res: Result<Vec<JSONDeviceOsVersions>, serde_json::Error> = serde_json::from_str(os_vers_str.as_str());
+                    if _res.is_ok() {
+                        os_version_pairs = _res.unwrap();
+                    }
+                }
+            } // If we are here, something went wrong during download
+            Err(wm_err) => {
+                return Some(wm_err);
+            }
+        }
+
+        // If we are here, data download succeeded, now let's create the data structure that we'll use to return OS and version enumerations.
+        // this is a map that binds each OS name to a vector of their versions
+        let mut ov_map: HashMap<String, Vec<String>> = HashMap::new();
+
+        // we'll now check if an OS name has already been added to this map,
+        // if not, we'll create a vector to hold the OS versions and add it to the map together with its OS name as key.
+        // If OS name exists in the map, we just get the vector to which is associated and just add the os version value to the vector.
+        // Version number are guaranteed to be unique for each OS name.
+        for ov_item in os_version_pairs {
+            if !ov_map.contains_key(ov_item.device_os.as_str()) {
+                let mut ov: Vec<String> = Vec::new();
+                ov.push(ov_item.device_os_version.clone());
+                ov_map.insert(ov_item.device_os, ov.clone());
+            } else {
+                // we need to the get the vec as mutable to add an item to it
+                let ov_vec_opt = ov_map.get_mut(ov_item.device_os.as_str());
+                let ov_vec = ov_vec_opt.unwrap();
+                ov_vec.push(ov_item.device_os_version);
+            }
+        }
+
+        // we now use the keys of the map (all OSes) to fill the OSes vector
+        let dev_os_guard = self._device_oses.lock();
+        let mut os_vec = dev_os_guard.unwrap();
+        os_vec.clear();
+        let keys = ov_map.keys();
+        for k in keys {
+            os_vec.push(k.to_string());
+        }
+
+        // fill the wm client field with the results of the previous process
+        let dev_os_ver_map_guard = self._device_os_versions_map.lock();
+        let mut dev_os_ver_map = dev_os_ver_map_guard.unwrap();
+        dev_os_ver_map.clear();
+        dev_os_ver_map.extend(ov_map);
+        return None;
+    }
+
+    fn internal_get(&self, path: &str) -> Result<Response, WmError> {
+        let full_url = self.create_url(path);
+        match ureq::get(full_url.as_str()).set("content-type", DEFAULT_CONTENT_TYPE)
+            .call() {
+            Ok(res) => {
+                return Ok(res);
+            }
+            Err(i_err) => {
+                return Err(WmError { msg: format!(" Unable to get data from {}: {}", full_url, i_err.to_string()) });
+            }
+        };
     }
 }
