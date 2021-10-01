@@ -229,8 +229,11 @@ impl WmClient {
     }
 
     fn clear_caches(&mut self) {
+        // This one clears the caches that associates headers to devices and WURFL IDs to devices
         self._cache.clear();
 
+        // the following calls clear frequently used "enumeration fields" which is very time consuming
+        // to download every time
         let mk_md_lock_res = self._make_models.lock();
         if mk_md_lock_res.is_ok() {
             let mut make_models = mk_md_lock_res.unwrap();
@@ -248,6 +251,12 @@ impl WmClient {
         if dev_os_lock_res.is_ok() {
             let mut device_oses = dev_os_lock_res.unwrap();
             device_oses.clear();
+        }
+
+        let os_ver_map_lock_res = self._device_os_versions_map.lock();
+        if os_ver_map_lock_res.is_ok(){
+            let mut  os_ver_map = os_ver_map_lock_res.unwrap();
+            os_ver_map.clear();
         }
     }
 
