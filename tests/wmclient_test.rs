@@ -340,6 +340,17 @@ fn test_get_all_versions_for_wrong_os_name(){
     assert!(err.msg.contains("does not exist"));
 }
 
+#[test]
+fn test_get_all_device_makes(){
+    let client_res = create_test_client();
+    assert!(client_res.is_ok());
+    let client = client_res.unwrap();
+    let makes_res = client.get_all_device_makes();
+    assert!(makes_res.is_ok());
+    let makes = makes_res.unwrap();
+    assert!(makes.len() > 2000);
+}
+
 // we reuse this for several tests
 fn _internal_test_lookup_device_id(mut client: WmClient){
     let device_res = client.lookup_device_id("nokia_generic_series40".to_string());

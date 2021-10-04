@@ -23,7 +23,7 @@ pub struct WmClient {
     _make_models: Mutex<Vec<JSONMakeModel>>,
     // List of device manufacturers
     _device_makes: Mutex<Vec<String>>,
-    _device_makes_map: HashMap<String, Vec<JSONModelMktName>>,
+    _device_makes_map: Mutex<HashMap<String, Vec<JSONModelMktName>>>,
     // Map that associates os name to JSONDeviceOsVersions objects
     _device_os_versions_map: Mutex<HashMap<String, Vec<String>>>,
     // List of all device OSes
@@ -57,7 +57,7 @@ impl WmClient {
             _cache: Cache::new(50000),
             _make_models: Mutex::new(mk_md),
             _device_makes: Mutex::new(d_mk),
-            _device_makes_map: d_mm,
+            _device_makes_map: Mutex::new(d_mm),
             _device_os_versions_map: Mutex::new(d_ovm),
             _device_oses: Mutex::new(d_oses),
             _ltime: "0".to_string(),
@@ -240,11 +240,15 @@ impl WmClient {
             make_models.clear();
         }
 
-        let dev_makes_lock_res = self._device_makes.lock();
-        if dev_makes_lock_res.is_ok() {
-            let mut device_makes = dev_makes_lock_res.unwrap();
+        let dev_makes_lock_guard = self._device_makes.lock();
+        if dev_makes_lock_guard.is_ok() {
+            let mut device_makes = dev_makes_lock_guard.unwrap();
             device_makes.clear();
-            self._device_makes_map.clear();
+            let dev_makes_map_guard = self._device_makes_map.lock();
+            if dev_makes_map_guard.is_ok(){
+                dev_makes_map_guard.unwrap().clear();
+            }
+
         }
 
         let dev_os_lock_res = self._device_oses.lock();
@@ -254,8 +258,8 @@ impl WmClient {
         }
 
         let os_ver_map_lock_res = self._device_os_versions_map.lock();
-        if os_ver_map_lock_res.is_ok(){
-            let mut  os_ver_map = os_ver_map_lock_res.unwrap();
+        if os_ver_map_lock_res.is_ok() {
+            let mut os_ver_map = os_ver_map_lock_res.unwrap();
             os_ver_map.clear();
         }
     }
@@ -475,6 +479,24 @@ impl WmClient {
         }
     }
 
+    pub fn get_all_device_makes(&self) -> Result<Vec<String>, WmError> {
+        let makes_data = self._load_device_makes_data();
+        if makes_data.is_some() {
+            let wm_err = makes_data.unwrap();
+            return Err(wm_err);
+        }
+
+        let guard = self._device_makes.lock();
+        if guard.is_ok() {
+            let vec = guard.unwrap();
+            let ret_val = vec.to_vec();
+            return Ok(ret_val);
+        } else {
+            let guard_err = guard.err().unwrap();
+            return Err(WmError { msg: format!("Cannot retrieve device makes list: {}", guard_err.to_string()) });
+        }
+    }
+
 
     fn _load_device_os_data(&self) -> Option<WmError> {
         let os_guard = self._device_oses.lock();
@@ -484,6 +506,7 @@ impl WmClient {
                 return None;
             }
         }
+        // TODO: handle case in which os_guard is NOT ok
 
         // this struct is a vector holding pairs of os name ("Android") and version ("10.0")
         let mut os_version_pairs: Vec<JSONDeviceOsVersions> = Vec::with_capacity(1000);
@@ -554,5 +577,80 @@ impl WmClient {
                 return Err(WmError { msg: format!(" Unable to get data from {}: {}", full_url, i_err.to_string()) });
             }
         };
+    }
+
+    fn _load_device_makes_data(&self) -> Option<WmError> {
+        // We lock the shared makeModel cache
+        let dev_makes_guard = self._device_makes.lock();
+        if !dev_makes_guard.is_ok() {
+            let err = dev_makes_guard.err().unwrap();
+            return Some(WmError { msg: format!("Cannot download device makes data: {}", err.to_string()) });
+        } else {
+            let dev_makes = dev_makes_guard.unwrap();
+            if dev_makes.len() > 0 {
+                // cache has already been loaded or refreshed, return None
+                return None;
+            }
+        }
+
+        let mut mk_models: Vec<JSONMakeModel> = Vec::with_capacity(1000);
+        let all_devices_res = self.internal_get("/v2/alldevices/json");
+        match all_devices_res {
+            Ok(res) => {
+                let res_string = res.into_string();
+                if res_string.is_ok() {
+                    let _res: Result<Vec<JSONMakeModel>, serde_json::Error> = serde_json::from_str(res_string.unwrap().as_str());
+                    if _res.is_ok() {
+                        mk_models = _res.unwrap();
+                    } else {
+                        return Some(WmError { msg: format!("Could not parse device makes data {} ", _res.err().unwrap().to_string()) });
+                    }
+                } else {
+                    let err = res_string.err();
+                    return Some(WmError { msg: format!("Could not parse device makes data {} ", err.unwrap().to_string()) });
+                }
+            }
+            Err(wm_err) => {
+                return Some(wm_err);
+            }
+        }
+
+        let mut dev_makes_map: HashMap<String, Vec<JSONModelMktName>> = HashMap::new();
+        let device_makes: Vec<String> = Vec::with_capacity(1000);
+        for make_model in mk_models {
+            let mut marketing_name = "".to_string();
+            if make_model.marketing_name.is_some(){
+                marketing_name = make_model.marketing_name.unwrap();
+            }
+
+
+            let md_mk_name = JSONModelMktName {
+                model_name: make_model.model_name.to_string(),
+                marketing_name,
+            };
+            if !dev_makes_map.contains_key(make_model.brand_name.as_str()) {
+                let mut model_market_names: Vec<JSONModelMktName> = Vec::new();
+                model_market_names.push(md_mk_name);
+                dev_makes_map.insert(make_model.brand_name, model_market_names);
+            } else {
+                let model_market_names_opt = dev_makes_map.get_mut(make_model.brand_name.as_str());
+                let model_market_vec = model_market_names_opt.unwrap();
+                model_market_vec.push(md_mk_name);
+            }
+        }
+        let dev_makes_guard = self._device_makes.lock();
+        let mut dev_makes_vec = dev_makes_guard.unwrap();
+        dev_makes_vec.clear();
+        let keys = dev_makes_map.keys();
+        for k in keys {
+            dev_makes_vec.push(k.to_string());
+        }
+        // fill the wm client field with the results of the previous process
+        let dev_make_model_map_guard = self._device_makes_map.lock();
+        // We can unwrap safely since we know we created it.
+        let mut dev_make_model_map = dev_make_model_map_guard.unwrap();
+        dev_make_model_map.clear();
+        dev_make_model_map.extend(dev_makes_map);
+        return None;
     }
 }

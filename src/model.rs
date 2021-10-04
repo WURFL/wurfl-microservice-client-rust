@@ -26,7 +26,7 @@ pub struct JSONDeviceData {
 struct JSONMakeModel {
     brand_name: String,
     model_name: String,
-    marketing_name: String
+    marketing_name: Option<String>
 }
 
 #[derive(Debug, Serialize, Deserialize)]
