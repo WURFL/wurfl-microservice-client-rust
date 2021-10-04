@@ -30,9 +30,9 @@ struct JSONMakeModel {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct  JSONModelMktName {
-    model_name: String,
-    marketing_name: String
+pub struct  JSONModelMktName {
+    pub model_name: String,
+    pub marketing_name: String
 }
 
 #[derive(Debug, Serialize, Deserialize)]

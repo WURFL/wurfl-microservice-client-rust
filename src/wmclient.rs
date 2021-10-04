@@ -497,6 +497,40 @@ impl WmClient {
         }
     }
 
+    pub fn get_all_devices_for_make(&self, brand_name: String) -> Result<Vec<JSONModelMktName>, WmError> {
+
+        let makes_data = self._load_device_makes_data();
+        if makes_data.is_some() {
+            let wm_err = makes_data.unwrap();
+            return Err(wm_err);
+        }
+
+        let guard = self._device_makes_map.lock();
+        if guard.is_ok(){
+            let device_makes_map = guard.unwrap();
+            let vec_opt = device_makes_map.get(brand_name.as_str());
+            if vec_opt.is_some(){
+                let mut ret_vec: Vec<JSONModelMktName> = Vec::new();
+                let md_mk_vec = vec_opt.unwrap();
+                for md_mk in md_mk_vec {
+                    let md_mk_copy = JSONModelMktName {
+                        model_name: md_mk.model_name.to_string(),
+                        marketing_name: md_mk.marketing_name.to_string(),
+                    };
+                    ret_vec.push(md_mk_copy);
+                }
+                return Ok(ret_vec);
+
+            } else {
+                return Err(WmError { msg: format!("Error getting data from WM server: brand {} does not exist or has no devices", brand_name) });
+            }
+        }
+        else {
+            let guard_err = guard.err();
+            return Err(WmError { msg: format!("Error getting data from WM server: {}", guard_err.unwrap().to_string()) });
+        }
+
+    }
 
     fn _load_device_os_data(&self) -> Option<WmError> {
         let os_guard = self._device_oses.lock();
@@ -616,7 +650,6 @@ impl WmClient {
         }
 
         let mut dev_makes_map: HashMap<String, Vec<JSONModelMktName>> = HashMap::new();
-        let device_makes: Vec<String> = Vec::with_capacity(1000);
         for make_model in mk_models {
             let mut marketing_name = "".to_string();
             if make_model.marketing_name.is_some(){

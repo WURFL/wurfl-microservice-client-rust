@@ -351,6 +351,36 @@ fn test_get_all_device_makes(){
     assert!(makes.len() > 2000);
 }
 
+#[test]
+fn test_get_all_devices_for_make(){
+    let client_res = create_test_client();
+    assert!(client_res.is_ok());
+    let client = client_res.unwrap();
+    let devices_res = client.get_all_devices_for_make("Nokia".to_string());
+    assert!(devices_res.is_ok());
+    let devices = devices_res.unwrap();
+    assert!(devices.len() > 700);
+    let d_opt = devices.get(0);
+    assert!(d_opt.is_some());
+    let d = d_opt.unwrap();
+    assert!(d.model_name.len() > 0);
+
+    // let' try with Apple
+    let devices_res2 = client.get_all_devices_for_make("Apple".to_string());
+    assert!(devices_res2.is_ok());
+    let devices2 = devices_res2.unwrap();
+    assert!(devices2.len() > 70);
+}
+
+#[test]
+fn test_get_all_devices_for_not_existing_make(){
+    let client_res = create_test_client();
+    assert!(client_res.is_ok());
+    let client = client_res.unwrap();
+    let devices_res = client.get_all_devices_for_make("NotExisting".to_string());
+    assert!(devices_res.is_err());
+}
+
 // we reuse this for several tests
 fn _internal_test_lookup_device_id(mut client: WmClient){
     let device_res = client.lookup_device_id("nokia_generic_series40".to_string());
