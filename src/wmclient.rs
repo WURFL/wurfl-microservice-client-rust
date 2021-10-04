@@ -1,6 +1,8 @@
 pub const DEVICE_ID_CACHE_TYPE: &str = "dId-cache";
 pub const USERAGENT_CACHE_TYPE: &str = "ua-cache";
 const DEFAULT_CONTENT_TYPE: &str = "application/json";
+// timeouts are in milliseconds
+const DEFAULT_CONN_TIMEOUT: u64 = 10000;
 
 pub struct WmClient {
     _scheme: String,
@@ -29,6 +31,7 @@ pub struct WmClient {
     // List of all device OSes
     _device_oses: Mutex<Vec<String>>,
     _ltime: String,
+    _connection_timeout: u64,
 }
 
 impl WmClient {
@@ -61,6 +64,7 @@ impl WmClient {
             _device_os_versions_map: Mutex::new(d_ovm),
             _device_oses: Mutex::new(d_oses),
             _ltime: "0".to_string(),
+            _connection_timeout: DEFAULT_CONN_TIMEOUT,
         };
 
         let info_res = wm_client.get_info();
@@ -83,6 +87,11 @@ impl WmClient {
         return "1.0.0";
     }
 
+    // sets the overall HTTP timeout in milliseconds
+    pub fn set_http_timeout(&mut self, timeout: u64) {
+        self._connection_timeout = timeout;
+    }
+
     pub fn has_static_capability(&self, cap_name: &str) -> bool {
         return self.static_caps.contains(&cap_name.to_string());
     }
@@ -94,7 +103,9 @@ impl WmClient {
     /// Returns info about the running WURFL Microservice server to which this client is connected
     pub fn get_info(&self) -> Result<JSONInfoData, WmError> {
         let url = self.create_url("/v2/getinfo/json");
-        match ureq::get(url.as_str()).set("content-type", DEFAULT_CONTENT_TYPE)
+        match ureq::get(url.as_str())
+            .timeout(Duration::from_millis(self._connection_timeout))
+            .set("content-type", DEFAULT_CONTENT_TYPE)
             .call() {
             Ok(res) => {
                 let info_res = res.into_json();
@@ -104,8 +115,8 @@ impl WmClient {
                     Err(WmError { msg: "Unable to create Wurfl microservice client: could not parse server info".to_string() })
                 };
             }
-            Err(ierr) => {
-                return Err(WmError { msg: format!(" Unable to create Wurfl microservice client: {}", ierr.to_string()) });
+            Err(i_err) => {
+                return Err(WmError { msg: format!(" Unable to create Wurfl microservice client: {}", i_err.to_string()) });
             }
         };
     }

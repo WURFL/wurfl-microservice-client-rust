@@ -381,6 +381,30 @@ fn test_get_all_devices_for_not_existing_make(){
     assert!(devices_res.is_err());
 }
 
+#[test]
+fn test_set_http_timeout_expiration(){
+    let client_res = create_test_client();
+    assert!(client_res.is_ok());
+    let mut client = client_res.unwrap();
+    client.set_http_timeout(1);
+    let res = client.get_info();
+    assert!(res.is_err());
+    let err_opt = res.err();
+    assert!(err_opt.is_some());
+    let err_msg = err_opt.unwrap();
+    assert!(err_msg.to_string().contains("timed out"));
+}
+
+#[test]
+fn test_set_http_timeout(){
+    let client_res = create_test_client();
+    assert!(client_res.is_ok());
+    let mut client = client_res.unwrap();
+    client.set_http_timeout(5000);
+    let res = client.get_info();
+    assert!(res.is_ok());
+}
+
 // we reuse this for several tests
 fn _internal_test_lookup_device_id(mut client: WmClient){
     let device_res = client.lookup_device_id("nokia_generic_series40".to_string());
