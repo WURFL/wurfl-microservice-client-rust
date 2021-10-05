@@ -95,7 +95,7 @@ impl WmClient {
 
     /// Returns the version of this Rust client API
     pub fn get_api_version(&self) -> &str {
-        return "1.0.0";
+        return "0.1.0";
     }
 
     // sets the overall HTTP timeout in milliseconds
