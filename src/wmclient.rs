@@ -652,7 +652,7 @@ impl WmClient {
             }
         }
 
-        let mut mk_models: Vec<JSONMakeModel> = Vec::with_capacity(1000);
+        let mk_models: Vec<JSONMakeModel>;
         let all_devices_res = self.internal_get("/v2/alldevices/json");
         match all_devices_res {
             Ok(res) => {

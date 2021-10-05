@@ -1,3 +1,4 @@
+use std::borrow::BorrowMut;
 use std::env;
 
 use wmclient::*;
@@ -58,7 +59,7 @@ fn create_with_empty_server_values_test() {
 }
 
 #[test]
-fn get_info_test() {
+fn test_get_info() {
     let cl_res = create_test_client();
     assert!(cl_res.is_ok());
     let client = cl_res.unwrap();
@@ -72,7 +73,7 @@ fn get_info_test() {
 }
 
 #[test]
-fn has_static_capability_test() {
+fn test_has_static_capability() {
     let cl_res = create_test_client();
     assert!(cl_res.is_ok());
     let client = cl_res.unwrap();
@@ -82,7 +83,7 @@ fn has_static_capability_test() {
 }
 
 #[test]
-fn has_virtual_capability_test() {
+fn test_has_virtual_capability() {
     let cl_res = create_test_client();
     assert!(cl_res.is_ok());
     let client = cl_res.unwrap();
@@ -92,7 +93,7 @@ fn has_virtual_capability_test() {
 }
 
 #[test]
-fn lookup_useragent_test_ok() {
+fn test_lookup_useragent_ok() {
     let cl_res = create_test_client();
     assert!(cl_res.is_ok());
     let mut client = cl_res.unwrap();
@@ -110,7 +111,26 @@ fn lookup_useragent_test_ok() {
 }
 
 #[test]
-fn lookup_empty_useragent_test() {
+fn test_multiple_lookup_useragent(){
+    let cl_res = create_test_client();
+    assert!(cl_res.is_ok());
+    let mut client = cl_res.unwrap();
+    let ua = "Mozilla/5.0 (Linux; Android 7.0; SAMSUNG SM-G950F Build/NRD90M) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/5.2 Chrome/51.0.2704.106 Mobile Safari/537.36";
+    client.set_cache_size(100);
+    for _i in 0..50 {
+        let device_res = client.lookup_useragent(ua.to_string());
+        assert!(device_res.is_ok());
+        let device = device_res.unwrap();
+        assert!(device.capabilities.len() > 0);
+    }
+    let sizes = client.get_actual_cache_sizes();
+    // Cache is hit the first time, then it is always reused
+    assert_eq!(1, sizes.1);
+
+}
+
+#[test]
+fn test_lookup_empty_useragent() {
     let cl_res = create_test_client();
     assert!(cl_res.is_ok());
     let mut client = cl_res.unwrap();
@@ -126,7 +146,7 @@ fn lookup_empty_useragent_test() {
 
 
 #[test]
-fn lookup_useragent_with_specific_caps_test() {
+fn test_lookup_useragent_with_specific_caps() {
     let cl_res = create_test_client();
     assert!(cl_res.is_ok());
     let mut client = cl_res.unwrap();
@@ -173,7 +193,7 @@ fn test_set_requested_capabilities() {
 }
 
 #[test]
-fn reset_cache_on_requested_caps_change_test() {
+fn test_reset_cache_on_requested_caps_change() {
     // Checks that cache is cleared whenever a reset of the requested static and/or virtual capabilities occur
     let client_res = create_test_client();
     assert!(client_res.is_ok());
@@ -207,7 +227,7 @@ fn reset_cache_on_requested_caps_change_test() {
 }
 
 #[test]
-fn lookup_headers_ok() {
+fn test_lookup_headers_ok() {
     let client_res = create_test_client();
     assert!(client_res.is_ok());
     let mut client = client_res.unwrap();
@@ -292,8 +312,33 @@ fn test_lookup_headers_with_empty_header_map() {
 fn test_single_lookup_device_id() {
     let client_res = create_test_client();
     assert!(client_res.is_ok());
-    let client = client_res.unwrap();
-    _internal_test_lookup_device_id(client);
+    let mut client = client_res.unwrap();
+    _internal_test_lookup_device_id(client.borrow_mut());
+}
+
+#[test]
+fn test_multiple_lookup_device_id(){
+    let cl_res = create_test_client();
+    assert!(cl_res.is_ok());
+    let mut client = cl_res.unwrap();
+    client.set_cache_size(100);
+    for _i in 0..50 {
+        _internal_test_lookup_device_id(client.borrow_mut());
+    }
+    let sizes = client.get_actual_cache_sizes();
+    // Cache is hit the first time, then it is always reused
+    assert_eq!(1, sizes.0);
+
+}
+
+#[test]
+fn test_lookup_wrong_device_id(){
+    let client_res = create_test_client();
+    assert!(client_res.is_ok());
+    let mut client = client_res.unwrap();
+    let result = client.lookup_device_id("doesnotexist".to_string());
+    // wurfl is does not exist, method returns error
+    assert!(result.is_err());
 }
 
 #[test]
@@ -406,7 +451,7 @@ fn test_set_http_timeout(){
 }
 
 // we reuse this for several tests
-fn _internal_test_lookup_device_id(mut client: WmClient){
+fn _internal_test_lookup_device_id(client: &mut WmClient){
     let device_res = client.lookup_device_id("nokia_generic_series40".to_string());
     assert!(device_res.is_ok());
     let device = device_res.unwrap();
