@@ -1,3 +1,14 @@
+/*
+ *
+ * Project : WURFL Microservice 2.0 Client API
+ *
+ * Author(s): Andrea Castello
+ *
+ * Date: Sept 2021
+ *
+ * Copyright (c) ScientiaMobile, Inc.
+ * http://www.scientiamobile.com
+ */
 pub const DEVICE_ID_CACHE_TYPE: &str = "dId-cache";
 pub const USERAGENT_CACHE_TYPE: &str = "ua-cache";
 const DEFAULT_CONTENT_TYPE: &str = "application/json";
@@ -188,14 +199,17 @@ impl WmClient {
         }
     }
 
-    /// LookupHeaders - detects a device and returns its data in JSON format
-    pub fn lookup_headers(&self, in_headers: HashMap<String, String>) -> Result<JSONDeviceData, WmError> {
+    /// lookup_headers - Performs a device detection based on HTTP request headers that can be passed in any data structures that implement the
+    /// `IntoIterator` trait (for example: HashMap or Hyper framework HeaderMap.
+    pub fn lookup_headers<U, V, T: IntoIterator<Item=(U, V)>>(&mut self, in_headers: T) -> Result<JSONDeviceData, WmError> where
+        U: ToString,
+        V: ToString {
         let mut headers: HashMap<String, String> = HashMap::new();
 
         // first: make all headers lowercase
         let mut lower_key_map: HashMap<String, String> = HashMap::new();
-        for item in in_headers {
-            lower_key_map.insert(item.0.to_lowercase(), item.1);
+        for (key, value)  in in_headers {
+            lower_key_map.insert(key.to_string().to_lowercase(), value.to_string());
         }
 
         // copy important headers with the headers name properly cased.
@@ -231,7 +245,7 @@ impl WmClient {
         if device_res.is_ok() {
             let device = device_res.unwrap();
             // check if server WURFL.xml has been updated and, if so, clear caches
-            //c.clearCachesIfNeeded(deviceData.Ltime)
+            self._clear_caches_if_needed(self._ltime.clone());
             self._cache.put(USERAGENT_CACHE_TYPE.to_string(), self.get_user_agent_cache_key(headers.clone()).unwrap(), device.clone());
             return Ok(device);
         } else {

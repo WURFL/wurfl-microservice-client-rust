@@ -210,7 +210,7 @@ fn reset_cache_on_requested_caps_change_test() {
 fn lookup_headers_ok() {
     let client_res = create_test_client();
     assert!(client_res.is_ok());
-    let client = client_res.unwrap();
+    let mut client = client_res.unwrap();
     // Let's create test headers
     let mut headers: HashMap<String,String> = HashMap::new();
     headers.insert("X-Requested-With".to_string(),"json_client".to_string());
@@ -255,7 +255,7 @@ fn test_lookup_headers_with_specific_caps() {
 fn test_lookup_headers_with_mixed_case() {
     let client_res = create_test_client();
     assert!(client_res.is_ok());
-    let client = client_res.unwrap();
+    let mut client = client_res.unwrap();
     // Let's create test headers
     let mut headers: HashMap<String,String> = HashMap::new();
     headers.insert("X-Requested-With".to_string(),"json_client".to_string());
@@ -277,7 +277,7 @@ fn test_lookup_headers_with_mixed_case() {
 fn test_lookup_headers_with_empty_header_map() {
     let client_res = create_test_client();
     assert!(client_res.is_ok());
-    let client = client_res.unwrap();
+    let mut client = client_res.unwrap();
     // Passing an empty map should result in the creation of an empty request object, thus in a "generic" device detection...
     let headers: HashMap<String,String> = HashMap::new();
 
