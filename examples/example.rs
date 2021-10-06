@@ -9,7 +9,9 @@ fn main() {
     let mut client: WmClient;
     if client_res.is_ok(){
         client = client_res.unwrap();
+        println!("-----------------------------------------------------------------------------------");
         println!("WURFL Microservice client created successfully. Rust client API version: {}", client.get_api_version());
+        println!("-----------------------------------------------------------------------------------");
     } else {
         println!("Unable to create WURFL Microservice client: {}", client_res.err().unwrap().to_string());
         return;
@@ -61,6 +63,8 @@ fn main() {
     let device = device_res.unwrap();
     let wurfl_id_opt = device.capabilities.get("wurfl_id");
     if wurfl_id_opt.is_some() {
+        println!("-----------------------------------------------------------------------------------");
+        println!("Sample device detection using sample headers");
         println!("WURFL device ID : {}", wurfl_id_opt.unwrap());
     }
     // If you are sure the capability you're querying exists and is in your required set, just unwrap the capability option
@@ -83,10 +87,56 @@ fn main() {
     let mut device_makes = makes_res.unwrap();
     device_makes.sort();
     let limit = 20;
-    println!("Print the first {} Brand of {} found", limit, device_makes.len());
+    println!("-----------------------------------------------------------------------------------");
+    println!("Print the first {} brand_names of {} found", limit, device_makes.len());
+    println!("-----------------------------------------------------------------------------------");
 
     for _i in 0..limit {
         println!("{}", device_makes.get(_i).unwrap());
     }
 
+    // Now call the WM server to get all device model and marketing names produced by Apple
+    let model_marketing_names_opt = client.get_all_devices_for_make("Apple".to_string());
+    if model_marketing_names_opt.is_err(){
+        let err_mmkt = model_marketing_names_opt.as_ref().err().unwrap();
+        println!("Error getting device model and marketing data for Apple:  {}", err_mmkt.to_string());
+    }
+
+    let mut model_marketing_names = model_marketing_names_opt.unwrap();
+    // Sort model_marketing_names structs by their model name, using natural ordering (thus Uppercase names come first, then lowercase)
+    model_marketing_names.sort_by(|a,b| a.model_name.cmp(&b.model_name));
+    println!("-----------------------------------------------------------------------------------");
+    println!("Printing all model and marketing names for Apple brand");
+    println!("-----------------------------------------------------------------------------------");
+    for name in model_marketing_names{
+        println!("- {} {}", name.model_name, name.marketing_name);
+    }
+
+    // Now call the WM server to get all operating system names
+    println!("-----------------------------------------------------------------------------------");
+    println!("Print the list of OSes");
+    println!("-----------------------------------------------------------------------------------");
+    let os_opt = client.get_all_oses();
+    if os_opt.is_err(){
+        let os_err = os_opt.as_ref().err().unwrap();
+        println!("Unable to get the list of operating systems: {}", os_err.to_string());
+    }
+    let mut os_list = os_opt.unwrap();
+    os_list.sort();
+    for os in os_list {
+        println!("- {}", os);
+    }
+
+    println!("-----------------------------------------------------------------------------------");
+    println!("Print all version numbers for Android OS");
+    println!("-----------------------------------------------------------------------------------");
+    let android_ver_opt = client.get_all_versions_for_os("Android");
+    if android_ver_opt.is_err(){
+        let ver_err = android_ver_opt.as_ref().err().unwrap();
+        println!("Unable to get versions for Android OS: {}", ver_err.to_string());
+    }
+    let android_versions = android_ver_opt.unwrap();
+    for v in android_versions {
+        println!("- {}", v);
+    }
 }

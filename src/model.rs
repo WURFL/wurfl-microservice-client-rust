@@ -29,7 +29,7 @@ struct JSONMakeModel {
     marketing_name: Option<String>
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, Ord, PartialEq, PartialOrd)]
 pub struct  JSONModelMktName {
     pub model_name: String,
     pub marketing_name: String
