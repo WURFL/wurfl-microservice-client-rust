@@ -565,7 +565,10 @@ impl WmClient {
                 return None;
             }
         }
-        // TODO: handle case in which os_guard is NOT ok
+        else {
+            let err_msg = os_guard.as_ref().err().unwrap();
+            return Some(WmError{msg: err_msg.to_string()});
+        }
 
         // this struct is a vector holding pairs of os name ("Android") and version ("10.0")
         let mut os_version_pairs: Vec<JSONDeviceOsVersions> = Vec::with_capacity(1000);
@@ -710,5 +713,12 @@ impl WmClient {
         dev_make_model_map.clear();
         dev_make_model_map.extend(dev_makes_map);
         return None;
+    }
+}
+
+impl Drop for WmClient {
+    fn drop(&mut self) {
+        self.clear_caches();
+        drop(self);
     }
 }
