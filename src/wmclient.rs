@@ -203,13 +203,13 @@ impl WmClient {
     /// `IntoIterator` trait (for example: HashMap or Hyper framework HeaderMap.
     pub fn lookup_headers<U, V, T: IntoIterator<Item=(U, V)>>(&mut self, in_headers: T) -> Result<JSONDeviceData, WmError> where
         U: ToString,
-        V: ToString {
+        V: AsRef<[u8]> {
         let mut headers: HashMap<String, String> = HashMap::new();
 
         // first: make all headers lowercase
         let mut lower_key_map: HashMap<String, String> = HashMap::new();
         for (key, value)  in in_headers {
-            lower_key_map.insert(key.to_string().to_lowercase(), value.to_string());
+            lower_key_map.insert(key.to_string().to_lowercase(), from_utf8(value.as_ref()).unwrap().to_string());
         }
 
         // copy important headers with the headers name properly cased.
