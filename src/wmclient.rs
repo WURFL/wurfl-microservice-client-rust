@@ -253,7 +253,7 @@ impl WmClient {
         }
     }
 
-    fn clear_caches(&mut self) {
+    pub fn clear_caches(&mut self) {
         // This one clears the caches that associates headers to devices and WURFL IDs to devices
         self._cache.clear();
 
