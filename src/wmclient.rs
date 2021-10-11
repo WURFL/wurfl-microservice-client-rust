@@ -15,6 +15,10 @@ const DEFAULT_CONTENT_TYPE: &str = "application/json";
 // timeouts are in milliseconds
 const DEFAULT_CONN_TIMEOUT: u64 = 10000;
 
+/// Client that interacts with a WURFL Microservice server (be it a docker image or a AWS/Azure or GCP
+/// virtual machine.
+/// This client exposes device lookup methods and some "enumration" methods, such as those for getting all OS names
+/// or all device brands used by the WURFL Microservice.
 pub struct WmClient {
     _scheme: String,
     _host: String,
@@ -46,7 +50,11 @@ pub struct WmClient {
 }
 
 impl WmClient {
-    /// Creates a new instance of the WURFL microservice client
+    /// Creates a new instance of the WURFL microservice client.
+    /// Basic usage:
+    /// ```no_run
+    /// let client = WmClient::new("http", "localhost", "8080", "");
+    /// ```
     pub fn new(scheme: &str, host: &str, port: &str, base_uri: &str) -> Result<WmClient, WmError> {
         let st_cap = vec![];
         let req_st_cap = vec![];
@@ -98,22 +106,34 @@ impl WmClient {
         return "0.1.0";
     }
 
-    // sets the overall HTTP timeout in milliseconds
+    /// sets the overall HTTP timeout in milliseconds
     pub fn set_http_timeout(&mut self, timeout: u64) {
         self._connection_timeout = timeout;
     }
 
+    /// returns true if WURFL microservice exposes the static capability with name `cap_name`, false otherwise
     pub fn has_static_capability(&self, cap_name: &str) -> bool {
         return self.static_caps.contains(&cap_name.to_string());
     }
 
+    /// returns true if WURFL microservice exposes the virtual capability with name `cap_name`, false otherwise
     pub fn has_virtual_capability(&self, vcap_name: &str) -> bool {
         return self.virtual_caps.contains(&vcap_name.to_string());
     }
 
-    /// Returns info about the running WURFL Microservice server to which this client is connected
+    /// Returns a struct containing info about the running WURFL Microservice server to which this client is connected
+    /// Basic usage:
+    /// ```no_run
+    /// let info_res = client.get_info();
+    ///     if info_res.is_err(){
+    ///         // handle error...
+    ///     }
+    ///     let info = info_res.unwrap();
+    ///     println!("Server version: {}", info.wm_version);
+    ///     println!("WURFL API version: {}", info.wurfl_api_version);
+    ///     println!("WURFL file info: {}", info.wurfl_info);
     pub fn get_info(&self) -> Result<JSONInfoData, WmError> {
-        let url = self.create_url("/v2/getinfo/json");
+        let url = self._create_url("/v2/getinfo/json");
         match ureq::get(url.as_str())
             .timeout(Duration::from_millis(self._connection_timeout))
             .set("content-type", DEFAULT_CONTENT_TYPE)
@@ -132,13 +152,14 @@ impl WmClient {
         };
     }
 
-    // LookupUserAgent - Searches WURFL device data using the given user-agent for detection
+    /// lookup_useragent - Searches WURFL device data using the given user-agent for detection.
+    /// Passing an empty string as user-agent will return a "generic" device.
     pub fn lookup_useragent(&mut self, user_agent: String) -> Result<JSONDeviceData, WmError> {
 
         // First: cache lookup
         let mut headers = HashMap::new();
         headers.insert("User-Agent".to_string(), user_agent);
-        let device_opt = self._cache.get(USERAGENT_CACHE_TYPE.to_string(), self.get_user_agent_cache_key(headers.clone()).unwrap());
+        let device_opt = self._cache.get(USERAGENT_CACHE_TYPE.to_string(), self._get_user_agent_cache_key(headers.clone()).unwrap());
         if device_opt.is_some() {
             let device_ref = device_opt.unwrap();
             let device = JSONDeviceData {
@@ -159,14 +180,15 @@ impl WmClient {
 
             // check if server WURFL.xml has been updated and, if so, clear caches
             self._clear_caches_if_needed(device.ltime.clone());
-            self._cache.put(USERAGENT_CACHE_TYPE.to_string(), self.get_user_agent_cache_key(headers.clone()).unwrap(), device.clone());
+            self._cache.put(USERAGENT_CACHE_TYPE.to_string(), self._get_user_agent_cache_key(headers.clone()).unwrap(), device.clone());
             return Ok(device);
         } else {
             return Err(result.err().unwrap());
         }
     }
 
-    /// lookup_device_id - Searches WURFL device data using its wurfl_id value
+    /// lookup_device_id - Searches WURFL device data using its wurfl_id value.
+    /// Passing an empty or not existing wurfl_id value will make client return a WmError
     pub fn lookup_device_id(&mut self, device_id: String) -> Result<JSONDeviceData, WmError> {
 
         // First: cache lookup
@@ -224,7 +246,7 @@ impl WmClient {
         let mut request = Request::new(Some(headers.clone()), self.requested_static_caps.clone(), self.requested_virtual_caps.clone(), None);
 
         // Do a cache lookup
-        let device_opt = self._cache.get(USERAGENT_CACHE_TYPE.to_string(), self.get_user_agent_cache_key(headers.clone()).unwrap());
+        let device_opt = self._cache.get(USERAGENT_CACHE_TYPE.to_string(), self._get_user_agent_cache_key(headers.clone()).unwrap());
 
         if device_opt.is_some() {
             let d = device_opt.unwrap();
@@ -246,13 +268,14 @@ impl WmClient {
             let device = device_res.unwrap();
             // check if server WURFL.xml has been updated and, if so, clear caches
             self._clear_caches_if_needed(self._ltime.clone());
-            self._cache.put(USERAGENT_CACHE_TYPE.to_string(), self.get_user_agent_cache_key(headers.clone()).unwrap(), device.clone());
+            self._cache.put(USERAGENT_CACHE_TYPE.to_string(), self._get_user_agent_cache_key(headers.clone()).unwrap(), device.clone());
             return Ok(device);
         } else {
             return Err(device_res.err().unwrap());
         }
     }
 
+    /// Clear all the caches in this client
     pub fn clear_caches(&mut self) {
         // This one clears the caches that associates headers to devices and WURFL IDs to devices
         self._cache.clear();
@@ -294,14 +317,14 @@ impl WmClient {
         self._cache = Cache::new(ua_max_entries);
     }
 
-    fn create_url(&self, path: &str) -> String {
+    fn _create_url(&self, path: &str) -> String {
         if !self._base_uri.is_empty() {
             return format!("{}://{}:{}/{}{}", self._scheme.as_str(), self._host.as_str(), self._port.as_str(), self._base_uri.as_str(), path);
         }
         return format!("{}://{}:{}{}", self._scheme.as_str(), self._host.as_str(), self._port.as_str(), path);
     }
 
-    fn get_user_agent_cache_key(&self, headers: HashMap<String, String>) -> Option<String> {
+    fn _get_user_agent_cache_key(&self, headers: HashMap<String, String>) -> Option<String> {
         let mut key = String::new();
         // Using important headers array preserves header name order
         for hname in &self.important_headers {
@@ -325,7 +348,7 @@ impl WmClient {
 
     // Performs a GET request and returns the response body as a JSON String that can be unmarshalled
     fn _internal_get(&self, endpoint: String) -> Result<String, WmError> {
-        let url = self.create_url(endpoint.as_str());
+        let url = self._create_url(endpoint.as_str());
         match ureq::get(url.as_str()).set("content-type", DEFAULT_CONTENT_TYPE)
             .call() {
             Ok(res) => {
@@ -345,7 +368,9 @@ impl WmClient {
         }
     }
 
-    /// set_requested_static_capabilities - set list of standard static capabilities to return
+    /// set_requested_static_capabilities - set list of standard static capabilities to return with the detected device.
+    /// A device struct returned by the client may have up to 500 capabilities. This method is used mainly to limit the returned static capabilities to the ones you
+    /// really need.
     pub fn set_requested_static_capabilities(&mut self, cap_list: Option<Vec<&str>>) {
         if cap_list.is_none() {
             self.requested_static_caps = None;
@@ -365,7 +390,9 @@ impl WmClient {
         }
     }
 
-    /// set_requested_virtual_capabilities - set list of standard virtual capabilities to return
+    /// set_requested_virtual_capabilities - set list of standard virtual capabilities to return with the detected device.
+    /// A device struct returned by the client may have up to 500 capabilities. This method is used mainly to limit the returned virtual capabilities to the ones you
+    /// really need.
     pub fn set_requested_virtual_capabilities(&mut self, vcap_list: Option<Vec<&str>>) {
         if vcap_list.is_none() {
             self.requested_virtual_caps = None;
@@ -385,7 +412,9 @@ impl WmClient {
         }
     }
 
-    /// SetRequestedCapabilities - set the given capability names to the set they belong
+    /// set_requested_capabilities - set list of standard capabilities to return with the detected device.
+    /// Using this method you don't have to know if the requested capability is either static or virtual, the method
+    /// assigns the capability to the set it belongs.
     pub fn set_requested_capabilities(&mut self, cap_list: Option<Vec<&str>>) {
         if cap_list.is_none() {
             self.requested_static_caps = None;
@@ -410,7 +439,7 @@ impl WmClient {
     }
 
     fn _internal_lookup(&self, request: Request, path: String) -> Result<JSONDeviceData, WmError> {
-        let url = self.create_url(path.as_str());
+        let url = self._create_url(path.as_str());
         let json_req = ureq::json!(request);
         let resp_res = ureq::post(url.as_str())
             .set("Content-type", DEFAULT_CONTENT_TYPE)
@@ -475,6 +504,8 @@ impl WmClient {
         }
     }
 
+    /// Return a Vec<String> containing all the versions for the given `os_name`.
+    /// It returns a WmError i case the given `os_name` does not exist
     pub fn get_all_versions_for_os(&self, os_name: &str) -> Result<Vec<String>, WmError> {
         let mut os_versions: Vec<String> = Vec::new();
         let os_data = self._load_device_os_data();
@@ -504,6 +535,7 @@ impl WmClient {
         }
     }
 
+    /// Returns the list of all device manufacturers in WURFL Microservice
     pub fn get_all_device_makes(&self) -> Result<Vec<String>, WmError> {
         let makes_data = self._load_device_makes_data();
         if makes_data.is_some() {
@@ -522,6 +554,8 @@ impl WmClient {
         }
     }
 
+    /// Returns a list of structs that hold data about model a device and marketing names for the given `brand_name`.
+    /// The method returns a WmError in case the `brand_name` does not exist.
     pub fn get_all_devices_for_make(&self, brand_name: String) -> Result<Vec<JSONModelMktName>, WmError> {
 
         let makes_data = self._load_device_makes_data();
@@ -629,7 +663,7 @@ impl WmClient {
     }
 
     fn internal_get(&self, path: &str) -> Result<Response, WmError> {
-        let full_url = self.create_url(path);
+        let full_url = self._create_url(path);
         match ureq::get(full_url.as_str()).set("content-type", DEFAULT_CONTENT_TYPE)
             .call() {
             Ok(res) => {
