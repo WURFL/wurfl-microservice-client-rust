@@ -68,7 +68,7 @@ impl WmClient {
             requested_static_caps: Some(req_st_cap),
             requested_virtual_caps: Some(req_v_cap),
             important_headers: i_h,
-            _cache: Cache::new(50000),
+            _cache: Cache::new(0),
             _make_models: Mutex::new(mk_md),
             _device_makes: Mutex::new(d_mk),
             _device_makes_map: Mutex::new(d_mm),

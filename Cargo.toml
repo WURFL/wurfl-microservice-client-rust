@@ -3,6 +3,9 @@ name = "wmclient"
 version = "0.1.0"
 authors = ["Andrea Castello <support@scientiamobile.com>"]
 edition = "2018"
+license = "Apache-2.0"
+homepage = "https://www.scientiamobile.com"
+
 
 [dependencies]
 ureq = { version = "*", features = ["json", "charset"] }

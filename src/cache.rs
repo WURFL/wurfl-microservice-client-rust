@@ -6,9 +6,16 @@ pub struct Cache {
 impl Cache {
 
     pub fn new(max_size: usize) -> Cache{
-        return Cache{
-            _ua_cache: Arc::new(Mutex::new(Some(LruCache::new(max_size)))),
-            _dev_id_cache: Arc::new(Mutex::new(Some(LruCache::new(20000))))
+        if max_size > 0 {
+            return Cache{
+                _ua_cache: Arc::new(Mutex::new(Some(LruCache::new(max_size)))),
+                _dev_id_cache: Arc::new(Mutex::new(Some(LruCache::new(20000))))
+            }
+        } else {
+            return Cache{
+                _ua_cache: Arc::new(Mutex::new(None)),
+                _dev_id_cache: Arc::new(Mutex::new(None))
+            }
         }
     }
 
