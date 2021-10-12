@@ -46,7 +46,7 @@ pub struct WmClient {
     // List of all device OSes
     _device_oses: Mutex<Vec<String>>,
     _ltime: String,
-    _connection_timeout: u64,
+    _agent: Agent,
 }
 
 impl WmClient {
@@ -66,6 +66,13 @@ impl WmClient {
         let d_mm = HashMap::new();
         let d_ovm = HashMap::new();
         let d_oses = vec![];
+
+        let agent = ureq::AgentBuilder::new()
+            .max_idle_connections_per_host(200)
+            .timeout(Duration::from_millis(DEFAULT_CONN_TIMEOUT))
+            .build();
+
+
         let mut wm_client = WmClient {
             _scheme: scheme.to_string(),
             _host: host.to_string(),
@@ -83,7 +90,7 @@ impl WmClient {
             _device_os_versions_map: Mutex::new(d_ovm),
             _device_oses: Mutex::new(d_oses),
             _ltime: "0".to_string(),
-            _connection_timeout: DEFAULT_CONN_TIMEOUT,
+            _agent: agent
         };
 
         let info_res = wm_client.get_info();
@@ -108,7 +115,17 @@ impl WmClient {
 
     /// sets the overall HTTP timeout in milliseconds
     pub fn set_http_timeout(&mut self, timeout: u64) {
-        self._connection_timeout = timeout;
+
+        if timeout == 0 {
+            return;
+        }
+
+        let agent = ureq::AgentBuilder::new()
+            .max_idle_connections_per_host(200)
+            .timeout(Duration::from_millis(timeout))
+            .build();
+
+        self._agent = agent;
     }
 
     /// returns true if WURFL microservice exposes the static capability with name `cap_name`, false otherwise
@@ -134,8 +151,7 @@ impl WmClient {
     ///     println!("WURFL file info: {}", info.wurfl_info);
     pub fn get_info(&self) -> Result<JSONInfoData, WmError> {
         let url = self._create_url("/v2/getinfo/json");
-        match ureq::get(url.as_str())
-            .timeout(Duration::from_millis(self._connection_timeout))
+        match self._agent.get(url.as_str())
             .set("content-type", DEFAULT_CONTENT_TYPE)
             .call() {
             Ok(res) => {
@@ -349,7 +365,7 @@ impl WmClient {
     // Performs a GET request and returns the response body as a JSON String that can be unmarshalled
     fn _internal_get(&self, endpoint: String) -> Result<String, WmError> {
         let url = self._create_url(endpoint.as_str());
-        match ureq::get(url.as_str()).set("content-type", DEFAULT_CONTENT_TYPE)
+        match self._agent.get(url.as_str()).set("content-type", DEFAULT_CONTENT_TYPE)
             .call() {
             Ok(res) => {
                 let result = res.into_string();
@@ -441,7 +457,7 @@ impl WmClient {
     fn _internal_lookup(&self, request: Request, path: String) -> Result<JSONDeviceData, WmError> {
         let url = self._create_url(path.as_str());
         let json_req = ureq::json!(request);
-        let resp_res = ureq::post(url.as_str())
+        let resp_res = self._agent.post(url.as_str())
             .set("Content-type", DEFAULT_CONTENT_TYPE)
             .set("User-Agent", self.get_wm_client_user_agent().as_str())
             .send_json(json_req);
@@ -664,7 +680,7 @@ impl WmClient {
 
     fn internal_get(&self, path: &str) -> Result<Response, WmError> {
         let full_url = self._create_url(path);
-        match ureq::get(full_url.as_str()).set("content-type", DEFAULT_CONTENT_TYPE)
+        match self._agent.get(full_url.as_str()).set("content-type", DEFAULT_CONTENT_TYPE)
             .call() {
             Ok(res) => {
                 return Ok(res);
