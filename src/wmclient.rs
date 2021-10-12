@@ -14,6 +14,7 @@ pub const USERAGENT_CACHE_TYPE: &str = "ua-cache";
 const DEFAULT_CONTENT_TYPE: &str = "application/json";
 // timeouts are in milliseconds
 const DEFAULT_CONN_TIMEOUT: u64 = 10000;
+const DEFAULT_RW_TIMEOUT: u64 = 60000;
 
 /// Client that interacts with a WURFL Microservice server (be it a docker image or a AWS/Azure or GCP
 /// virtual machine.
@@ -69,7 +70,9 @@ impl WmClient {
 
         let agent = ureq::AgentBuilder::new()
             .max_idle_connections_per_host(200)
-            .timeout(Duration::from_millis(DEFAULT_CONN_TIMEOUT))
+            .max_idle_connections(1000)
+            .timeout_connect(Duration::from_millis(DEFAULT_CONN_TIMEOUT))
+            .timeout_read(Duration::from_millis(DEFAULT_RW_TIMEOUT))
             .build();
 
 
@@ -114,15 +117,13 @@ impl WmClient {
     }
 
     /// sets the overall HTTP timeout in milliseconds
-    pub fn set_http_timeout(&mut self, timeout: u64) {
-
-        if timeout == 0 {
-            return;
-        }
+    pub fn set_http_timeout(&mut self, conn_timeout: u64, rw_timeout: u64) {
 
         let agent = ureq::AgentBuilder::new()
-            .max_idle_connections_per_host(200)
-            .timeout(Duration::from_millis(timeout))
+            .max_idle_connections_per_host(100)
+            .max_idle_connections(100)
+            .timeout_connect(Duration::from_millis(conn_timeout))
+            .timeout_read(Duration::from_millis(rw_timeout))
             .build();
 
         self._agent = agent;
@@ -769,6 +770,5 @@ impl WmClient {
 impl Drop for WmClient {
     fn drop(&mut self) {
         self.clear_caches();
-        drop(self);
     }
 }

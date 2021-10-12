@@ -431,7 +431,7 @@ fn test_set_http_timeout_expiration(){
     let client_res = create_test_client();
     assert!(client_res.is_ok());
     let mut client = client_res.unwrap();
-    client.set_http_timeout(1);
+    client.set_http_timeout(1, 1);
     let res = client.get_info();
     assert!(res.is_err());
     let err_opt = res.err();
@@ -445,7 +445,7 @@ fn test_set_http_timeout(){
     let client_res = create_test_client();
     assert!(client_res.is_ok());
     let mut client = client_res.unwrap();
-    client.set_http_timeout(5000);
+    client.set_http_timeout(5000, 20000);
     let res = client.get_info();
     assert!(res.is_ok());
 }
