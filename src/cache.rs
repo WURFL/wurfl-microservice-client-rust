@@ -79,12 +79,7 @@ fn _internal_get(cache: &Arc<Mutex<Option<LruCache<String, JSONDeviceData>>>>, k
         let opt = cache_guard.as_mut().unwrap().get(&key);
         if opt.is_some(){
             let d_ref = opt.unwrap();
-            let device = JSONDeviceData{
-                capabilities: d_ref.capabilities.clone(),
-                error: d_ref.error.clone(),
-                mtime: d_ref.mtime.clone(),
-                ltime: d_ref.ltime.clone()
-            };
+            let device = d_ref.clone();
             return Some(device);
         }
         return None;
