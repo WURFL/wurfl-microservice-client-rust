@@ -470,10 +470,8 @@ impl WmClient {
 
         if resp_res.is_ok() {
             let resp = resp_res.unwrap();
-            let str_resp_res = resp.into_string();
-            if str_resp_res.is_ok() {
-                let str_resp = str_resp_res.unwrap();
-                let device_res: Result<JSONDeviceData, serde_json::Error> = serde_json::from_str(str_resp.as_str());
+            let reader = resp.into_reader();
+                let device_res: Result<JSONDeviceData, serde_json::Error> = serde_json::from_reader(reader);
                 if device_res.is_ok() {
                     let device = device_res.unwrap();
                     let result = Ok(device);
@@ -486,9 +484,6 @@ impl WmClient {
                         return Err(WmError { msg: "Unable to parse JSON response".to_string() });
                     }
                 }
-            } else {
-                return Err(WmError { msg: str_resp_res.err().unwrap().to_string() });
-            }
         } else {
             return Err(WmError { msg: resp_res.err().unwrap().to_string() });
         }
