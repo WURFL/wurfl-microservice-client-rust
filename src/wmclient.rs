@@ -174,34 +174,7 @@ impl WmClient {
 
         let mut headers = HashMap::new();
         headers.insert("User-Agent".to_string(), user_agent);
-
-        // First: cache lookup
-        if self._cache.is_some() {
-            let device_opt = self._cache.as_ref().unwrap().get(USERAGENT_CACHE_TYPE.to_string(), self._get_user_agent_cache_key(headers.clone()).unwrap());
-            if device_opt.is_some() {
-                let device_ref = device_opt.unwrap();
-                let device = device_ref.clone();
-                return Ok(device);
-            }
-        }
-
-
-        let json_request = Request::new(Some(headers.clone()),
-                                        self.requested_static_caps.clone(),
-                                        self.requested_virtual_caps.clone(), None);
-        let result = self._internal_lookup(json_request, "/v2/lookupuseragent/json".to_string());
-        if result.is_ok() {
-            let device = result.unwrap();
-
-            // check if server WURFL.xml has been updated and, if so, clear caches
-            self._clear_caches_if_needed(device.ltime.clone());
-            if self._cache.is_some() {
-                self._cache.as_ref().unwrap().put(USERAGENT_CACHE_TYPE.to_string(), self._get_user_agent_cache_key(headers.clone()).unwrap(), device.clone());
-            }
-            return Ok(device);
-        } else {
-            return Err(result.err().unwrap());
-        }
+        return self.lookup_headers(headers);
     }
 
     /// lookup_device_id - Searches WURFL device data using its wurfl_id value.
@@ -263,12 +236,14 @@ impl WmClient {
                 headers.insert(ih_name, h_value.unwrap().to_string());
             }
         }
+        let cache_key = self._get_user_agent_cache_key(headers.clone()).unwrap();
+
         // Create the request object
         let mut request = Request::new(Some(headers.clone()), self.requested_static_caps.clone(), self.requested_virtual_caps.clone(), None);
 
         // Do a cache lookup
         if self._cache.is_some() {
-            let device_opt = self._cache.as_ref().unwrap().get(USERAGENT_CACHE_TYPE.to_string(), self._get_user_agent_cache_key(headers.clone()).unwrap());
+            let device_opt = self._cache.as_ref().unwrap().get(USERAGENT_CACHE_TYPE.to_string(), cache_key.clone());
 
             if device_opt.is_some() {
                 let d = device_opt.unwrap();
@@ -286,7 +261,7 @@ impl WmClient {
             // check if server WURFL.xml has been updated and, if so, clear caches
             self._clear_caches_if_needed(self._ltime.clone());
             if self._cache.is_some() {
-                self._cache.as_ref().unwrap().put(USERAGENT_CACHE_TYPE.to_string(), self._get_user_agent_cache_key(headers.clone()).unwrap(), device.clone());
+                self._cache.as_ref().unwrap().put(USERAGENT_CACHE_TYPE.to_string(), cache_key, device.clone());
             }
             return Ok(device);
         } else {
@@ -356,8 +331,9 @@ impl WmClient {
             }
         }
         let digest = md5::compute(key);
-        let str_digest = format!("{:x}", digest);
-        return Some(str_digest);
+        //let str_digest = format!("{:x}", digest);
+        let str_digest = String::from_utf8_lossy(digest.as_ref());
+        return Some(str_digest.to_string());
     }
 
     fn get_wm_client_user_agent(&self) -> String {
