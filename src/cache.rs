@@ -31,7 +31,7 @@ impl Cache {
         let did_size = did_guard.len();
         drop(did_guard);
 
-        return (did_size, ua_size);
+        (did_size, ua_size)
     }
 
     pub fn put(&self, cache_type: String, key: String, value: JSONDeviceData) {

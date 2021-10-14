@@ -228,11 +228,11 @@ impl WmClient {
         }
 
         // copy important headers with the headers name properly cased.
-        let ihs = self.important_headers.clone();
+        let ihs = &self.important_headers;
         for ih_name in ihs {
             let h_value = lower_key_map.get(ih_name.to_lowercase().as_str());
             if h_value.is_some() && !h_value.unwrap().is_empty() {
-                headers.insert(ih_name, h_value.unwrap().to_string());
+                headers.insert(ih_name.to_string(), h_value.unwrap().to_string());
             }
         }
         let cache_key = self._get_user_agent_cache_key(headers.clone()).unwrap();
@@ -660,12 +660,12 @@ impl WmClient {
         match self._agent.get(full_url.as_str()).set("content-type", DEFAULT_CONTENT_TYPE)
             .call() {
             Ok(res) => {
-                return Ok(res);
+                Ok(res)
             }
             Err(i_err) => {
-                return Err(WmError { msg: format!(" Unable to get data from {}: {}", full_url, i_err.to_string()) });
+                Err(WmError { msg: format!(" Unable to get data from {}: {}", full_url, i_err.to_string()) })
             }
-        };
+        }
     }
 
     fn _load_device_makes_data(&self) -> Option<WmError> {
