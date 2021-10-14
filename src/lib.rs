@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::str::from_utf8;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use md5;
 use ureq::{Agent, Response};
 include!("./wmclient.rs");
 include!("./model.rs");

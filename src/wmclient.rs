@@ -97,8 +97,7 @@ impl WmClient {
         };
 
         let info_res = wm_client.get_info();
-        if info_res.is_ok() {
-            let info = info_res.unwrap();
+        if let Ok(info) = info_res {
             wm_client.important_headers = info.important_headers.clone();
             wm_client.static_caps = info.static_caps.clone();
             wm_client.static_caps.sort();
@@ -524,13 +523,13 @@ impl WmClient {
                     }
                 }
                 os_versions.sort();
-                return Ok(os_versions.clone());
+                Ok(os_versions)
             } else {
-                return Err(WmError { msg: format!("Error getting data from WM server: {} does not exist or has no versions", os_name) });
+                Err(WmError { msg: format!("Error getting data from WM server: {} does not exist or has no versions", os_name) })
             }
         } else {
             let guard_err = os_ver_map_guard.err().unwrap();
-            return Err(WmError { msg: format!("Cannot retrieve device OS versions list: {}", guard_err.to_string()) });
+            Err(WmError { msg: format!("Cannot retrieve device OS versions list: {}", guard_err.to_string()) })
         }
     }
 

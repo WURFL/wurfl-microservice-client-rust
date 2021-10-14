@@ -5,10 +5,10 @@ pub struct Cache {
 
 impl Cache {
     pub fn new(max_size: usize) -> Cache {
-        return Cache {
+        Cache {
             _ua_cache: Arc::new(Mutex::new(LruCache::new(max_size))),
             _dev_id_cache: Arc::new(Mutex::new(LruCache::new(20000))),
-        };
+        }
     }
 
     pub fn clear(&self) {
@@ -44,9 +44,9 @@ impl Cache {
 
     pub fn get(&self, cache_type: String, key: String) -> Option<JSONDeviceData> {
         if cache_type == USERAGENT_CACHE_TYPE {
-            return _internal_get(&self._ua_cache, key);
+             _internal_get(&self._ua_cache, key);
         } else if cache_type == DEVICE_ID_CACHE_TYPE {
-            return _internal_get(&self._dev_id_cache, key);
+             _internal_get(&self._dev_id_cache, key);
         }
         return None;
     }
