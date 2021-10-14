@@ -52,12 +52,12 @@ struct Request {
 
 impl Request {
     pub fn new(lh: Option<HashMap<String, String>>, req_caps: Option<Vec<String>>, req_vcaps: Option<Vec<String>>, wid: Option<String>) -> Request {
-        return Request {
+        Request {
             lookup_headers: lh,
             requested_caps: req_caps,
             requested_vcaps: req_vcaps,
             wurfl_id: wid
-        };
+        }
     }
 }
 

@@ -104,15 +104,15 @@ impl WmClient {
             wm_client.virtual_caps = info.virtual_caps.clone();
             wm_client.virtual_caps.sort();
             wm_client._ltime = info.ltime;
-            return Ok(wm_client);
+            Ok(wm_client)
         } else {
-            return Err(WmError { msg: "Unable to create WURFL Microservice client: unable to get info from WM server".to_string() });
+            Err(WmError { msg: "Unable to create WURFL Microservice client: unable to get info from WM server".to_string() })
         }
     }
 
     /// Returns the version of this Rust client API
     pub fn get_api_version(&self) -> &str {
-        return "0.1.0";
+         "0.1.0"
     }
 
     /// sets the overall HTTP timeout in milliseconds
@@ -188,8 +188,8 @@ impl WmClient {
                 let device = JSONDeviceData {
                     capabilities: device_ref.capabilities.clone(),
                     error: device_ref.error.clone(),
-                    mtime: device_ref.mtime.clone(),
-                    ltime: device_ref.ltime.clone(),
+                    mtime: device_ref.mtime,
+                    ltime: device_ref.ltime,
                 };
                 return Ok(device);
             }
@@ -206,7 +206,7 @@ impl WmClient {
             self._clear_caches_if_needed(device.ltime.clone());
 
             if self._cache.is_some() {
-                self._cache.as_ref().unwrap().put(DEVICE_ID_CACHE_TYPE.to_string(), device_id.clone(), device.clone());
+                self._cache.as_ref().unwrap().put(DEVICE_ID_CACHE_TYPE.to_string(), device_id, device.clone());
             }
             return Ok(device);
         } else {
@@ -238,7 +238,7 @@ impl WmClient {
         let cache_key = self._get_user_agent_cache_key(headers.clone()).unwrap();
 
         // Create the request object
-        let mut request = Request::new(Some(headers.clone()), self.requested_static_caps.clone(), self.requested_virtual_caps.clone(), None);
+        let mut request = Request::new(Some(headers), self.requested_static_caps.clone(), self.requested_virtual_caps.clone(), None);
 
         // Do a cache lookup
         if self._cache.is_some() {

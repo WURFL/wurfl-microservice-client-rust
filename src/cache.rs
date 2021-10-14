@@ -44,11 +44,11 @@ impl Cache {
 
     pub fn get(&self, cache_type: String, key: String) -> Option<JSONDeviceData> {
         if cache_type == USERAGENT_CACHE_TYPE {
-             _internal_get(&self._ua_cache, key);
+            return _internal_get(&self._ua_cache, key);
         } else if cache_type == DEVICE_ID_CACHE_TYPE {
-             _internal_get(&self._dev_id_cache, key);
+             return _internal_get(&self._dev_id_cache, key);
         }
-        return None;
+        None
     }
 }
 
