@@ -35,7 +35,7 @@ pub struct WmClient {
     requested_virtual_caps: Option<Vec<String>>,
     pub important_headers: Vec<String>,
     // Internal caches
-    _cache: Cache,
+    _cache: Option<Cache>,
     // Maps concat headers (mainly UA) -> JSONDeviceData
     // Stores the result of time consuming call getAllMakeModel
     _make_models: Mutex<Vec<JSONMakeModel>>,
@@ -86,14 +86,14 @@ impl WmClient {
             requested_static_caps: Some(req_st_cap),
             requested_virtual_caps: Some(req_v_cap),
             important_headers: i_h,
-            _cache: Cache::new(0),
+            _cache: None,
             _make_models: Mutex::new(mk_md),
             _device_makes: Mutex::new(d_mk),
             _device_makes_map: Mutex::new(d_mm),
             _device_os_versions_map: Mutex::new(d_ovm),
             _device_oses: Mutex::new(d_oses),
             _ltime: "0".to_string(),
-            _agent: agent
+            _agent: agent,
         };
 
         let info_res = wm_client.get_info();
@@ -118,7 +118,6 @@ impl WmClient {
 
     /// sets the overall HTTP timeout in milliseconds
     pub fn set_http_timeout(&mut self, conn_timeout: u64, rw_timeout: u64) {
-
         let agent = ureq::AgentBuilder::new()
             .max_idle_connections_per_host(100)
             .max_idle_connections(100)
@@ -173,35 +172,9 @@ impl WmClient {
     /// Passing an empty string as user-agent will return a "generic" device.
     pub fn lookup_useragent(&mut self, user_agent: String) -> Result<JSONDeviceData, WmError> {
 
-        // First: cache lookup
         let mut headers = HashMap::new();
         headers.insert("User-Agent".to_string(), user_agent);
-        let device_opt = self._cache.get(USERAGENT_CACHE_TYPE.to_string(), self._get_user_agent_cache_key(headers.clone()).unwrap());
-        if device_opt.is_some() {
-            let device_ref = device_opt.unwrap();
-            let device = JSONDeviceData {
-                capabilities: device_ref.capabilities.clone(),
-                error: device_ref.error.clone(),
-                mtime: device_ref.mtime.clone(),
-                ltime: device_ref.ltime.clone(),
-            };
-            return Ok(device);
-        }
-
-        let json_request = Request::new(Some(headers.clone()),
-                                        self.requested_static_caps.clone(),
-                                        self.requested_virtual_caps.clone(), None);
-        let result = self._internal_lookup(json_request, "/v2/lookupuseragent/json".to_string());
-        if result.is_ok() {
-            let device = result.unwrap();
-
-            // check if server WURFL.xml has been updated and, if so, clear caches
-            self._clear_caches_if_needed(device.ltime.clone());
-            self._cache.put(USERAGENT_CACHE_TYPE.to_string(), self._get_user_agent_cache_key(headers.clone()).unwrap(), device.clone());
-            return Ok(device);
-        } else {
-            return Err(result.err().unwrap());
-        }
+        return self.lookup_headers(headers);
     }
 
     /// lookup_device_id - Searches WURFL device data using its wurfl_id value.
@@ -209,16 +182,18 @@ impl WmClient {
     pub fn lookup_device_id(&mut self, device_id: String) -> Result<JSONDeviceData, WmError> {
 
         // First: cache lookup
-        let device_opt = self._cache.get(DEVICE_ID_CACHE_TYPE.to_string(), device_id.clone());
-        if device_opt.is_some() {
-            let device_ref = device_opt.unwrap();
-            let device = JSONDeviceData {
-                capabilities: device_ref.capabilities.clone(),
-                error: device_ref.error.clone(),
-                mtime: device_ref.mtime.clone(),
-                ltime: device_ref.ltime.clone(),
-            };
-            return Ok(device);
+        if self._cache.is_some() {
+            let device_opt = self._cache.as_ref().unwrap().get(DEVICE_ID_CACHE_TYPE.to_string(), device_id.clone());
+            if device_opt.is_some() {
+                let device_ref = device_opt.unwrap();
+                let device = JSONDeviceData {
+                    capabilities: device_ref.capabilities.clone(),
+                    error: device_ref.error.clone(),
+                    mtime: device_ref.mtime.clone(),
+                    ltime: device_ref.ltime.clone(),
+                };
+                return Ok(device);
+            }
         }
 
         let json_request = Request::new(None,
@@ -231,7 +206,9 @@ impl WmClient {
             // check if server WURFL.xml has been updated and, if so, clear caches
             self._clear_caches_if_needed(device.ltime.clone());
 
-            self._cache.put(DEVICE_ID_CACHE_TYPE.to_string(), device_id.clone(), device.clone());
+            if self._cache.is_some() {
+                self._cache.as_ref().unwrap().put(DEVICE_ID_CACHE_TYPE.to_string(), device_id.clone(), device.clone());
+            }
             return Ok(device);
         } else {
             return Err(result.err().unwrap());
@@ -247,7 +224,7 @@ impl WmClient {
 
         // first: make all headers lowercase
         let mut lower_key_map: HashMap<String, String> = HashMap::new();
-        for (key, value)  in in_headers {
+        for (key, value) in in_headers {
             lower_key_map.insert(key.to_string().to_lowercase(), from_utf8(value.as_ref()).unwrap().to_string());
         }
 
@@ -259,21 +236,19 @@ impl WmClient {
                 headers.insert(ih_name, h_value.unwrap().to_string());
             }
         }
+        let cache_key = self._get_user_agent_cache_key(headers.clone()).unwrap();
+
         // Create the request object
         let mut request = Request::new(Some(headers.clone()), self.requested_static_caps.clone(), self.requested_virtual_caps.clone(), None);
 
         // Do a cache lookup
-        let device_opt = self._cache.get(USERAGENT_CACHE_TYPE.to_string(), self._get_user_agent_cache_key(headers.clone()).unwrap());
+        if self._cache.is_some() {
+            let device_opt = self._cache.as_ref().unwrap().get(USERAGENT_CACHE_TYPE.to_string(), cache_key.clone());
 
-        if device_opt.is_some() {
-            let d = device_opt.unwrap();
-            let device = JSONDeviceData {
-                capabilities: d.capabilities.clone(),
-                error: d.error.clone(),
-                mtime: d.mtime.clone(),
-                ltime: d.ltime.clone(),
-            };
-            return Ok(device);
+            if device_opt.is_some() {
+                let d = device_opt.unwrap();
+                return Ok(d);
+            }
         }
 
         request.requested_caps = self.requested_static_caps.clone();
@@ -285,7 +260,9 @@ impl WmClient {
             let device = device_res.unwrap();
             // check if server WURFL.xml has been updated and, if so, clear caches
             self._clear_caches_if_needed(self._ltime.clone());
-            self._cache.put(USERAGENT_CACHE_TYPE.to_string(), self._get_user_agent_cache_key(headers.clone()).unwrap(), device.clone());
+            if self._cache.is_some() {
+                self._cache.as_ref().unwrap().put(USERAGENT_CACHE_TYPE.to_string(), cache_key, device.clone());
+            }
             return Ok(device);
         } else {
             return Err(device_res.err().unwrap());
@@ -295,7 +272,9 @@ impl WmClient {
     /// Clear all the caches in this client
     pub fn clear_caches(&mut self) {
         // This one clears the caches that associates headers to devices and WURFL IDs to devices
-        self._cache.clear();
+        if self._cache.is_some() {
+            self._cache.as_ref().unwrap().clear();
+        }
 
         // the following calls clear frequently used "enumeration fields" which is very time consuming
         // to download every time
@@ -310,10 +289,9 @@ impl WmClient {
             let mut device_makes = dev_makes_lock_guard.unwrap();
             device_makes.clear();
             let dev_makes_map_guard = self._device_makes_map.lock();
-            if dev_makes_map_guard.is_ok(){
+            if dev_makes_map_guard.is_ok() {
                 dev_makes_map_guard.unwrap().clear();
             }
-
         }
 
         let dev_os_lock_res = self._device_oses.lock();
@@ -331,7 +309,7 @@ impl WmClient {
 
     /// Sets the new cache size. Changing cache size will result in a cache purge.
     pub fn set_cache_size(&mut self, ua_max_entries: usize) {
-        self._cache = Cache::new(ua_max_entries);
+        self._cache = Some(Cache::new(ua_max_entries));
     }
 
     fn _create_url(&self, path: &str) -> String {
@@ -353,8 +331,9 @@ impl WmClient {
             }
         }
         let digest = md5::compute(key);
-        let str_digest = format!("{:x}", digest);
-        return Some(str_digest);
+        //let str_digest = format!("{:x}", digest);
+        let str_digest = String::from_utf8_lossy(digest.as_ref());
+        return Some(str_digest.to_string());
     }
 
     fn get_wm_client_user_agent(&self) -> String {
@@ -499,7 +478,10 @@ impl WmClient {
     /// get_actual_cache_sizes returns the values of cache size. The first value being the device-id based cache, the second value being
     /// the size of the headers-based one
     pub fn get_actual_cache_sizes(&self) -> (usize, usize) {
-        return self._cache.get_actual_sizes();
+        if self._cache.is_some() {
+            return self._cache.as_ref().unwrap().get_actual_sizes();
+        }
+        return (0,0);
     }
 
     /// get_all_oses returns a vec<String> of all devices device_os capabilities in WM server
@@ -574,7 +556,6 @@ impl WmClient {
     /// Returns a list of structs that hold data about model a device and marketing names for the given `brand_name`.
     /// The method returns a WmError in case the `brand_name` does not exist.
     pub fn get_all_devices_for_make(&self, brand_name: String) -> Result<Vec<JSONModelMktName>, WmError> {
-
         let makes_data = self._load_device_makes_data();
         if makes_data.is_some() {
             let wm_err = makes_data.unwrap();
@@ -582,10 +563,10 @@ impl WmClient {
         }
 
         let guard = self._device_makes_map.lock();
-        if guard.is_ok(){
+        if guard.is_ok() {
             let device_makes_map = guard.unwrap();
             let vec_opt = device_makes_map.get(brand_name.as_str());
-            if vec_opt.is_some(){
+            if vec_opt.is_some() {
                 let mut ret_vec: Vec<JSONModelMktName> = Vec::new();
                 let md_mk_vec = vec_opt.unwrap();
                 for md_mk in md_mk_vec {
@@ -596,16 +577,13 @@ impl WmClient {
                     ret_vec.push(md_mk_copy);
                 }
                 return Ok(ret_vec);
-
             } else {
                 return Err(WmError { msg: format!("Error getting data from WM server: brand {} does not exist or has no devices", brand_name) });
             }
-        }
-        else {
+        } else {
             let guard_err = guard.err();
             return Err(WmError { msg: format!("Error getting data from WM server: {}", guard_err.unwrap().to_string()) });
         }
-
     }
 
     fn _load_device_os_data(&self) -> Option<WmError> {
@@ -615,10 +593,9 @@ impl WmClient {
             if !os_vec.is_empty() {
                 return None;
             }
-        }
-        else {
+        } else {
             let err_msg = os_guard.as_ref().err().unwrap();
-            return Some(WmError{msg: err_msg.to_string()});
+            return Some(WmError { msg: err_msg.to_string() });
         }
 
         // this struct is a vector holding pairs of os name ("Android") and version ("10.0")
@@ -731,7 +708,7 @@ impl WmClient {
         let mut dev_makes_map: HashMap<String, Vec<JSONModelMktName>> = HashMap::new();
         for make_model in mk_models {
             let mut marketing_name = "".to_string();
-            if make_model.marketing_name.is_some(){
+            if make_model.marketing_name.is_some() {
                 marketing_name = make_model.marketing_name.unwrap();
             }
 
