@@ -72,3 +72,9 @@ impl std::fmt::Display for WmError {
         write!(f, "{}", self.msg)
     }
 }
+
+impl From<reqwest::Error> for WmError {
+    fn from(reqw_err: Error) -> Self {
+        WmError{msg: reqw_err.to_string()}
+    }
+}

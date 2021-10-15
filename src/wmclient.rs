@@ -47,7 +47,7 @@ pub struct WmClient {
     // List of all device OSes
     _device_oses: Mutex<Vec<String>>,
     _ltime: String,
-    _agent: Agent,
+    _http_client: reqwest::blocking::Client,
 }
 
 impl WmClient {
@@ -68,13 +68,11 @@ impl WmClient {
         let d_ovm = HashMap::new();
         let d_oses = vec![];
 
-        let agent = ureq::AgentBuilder::new()
-            .max_idle_connections_per_host(200)
-            .max_idle_connections(1000)
-            .timeout_connect(Duration::from_millis(DEFAULT_CONN_TIMEOUT))
-            .timeout_read(Duration::from_millis(DEFAULT_RW_TIMEOUT))
-            .build();
-
+        let http_client = reqwest::blocking::Client::builder()
+            .connect_timeout(Duration::from_millis(DEFAULT_CONN_TIMEOUT))
+            .timeout(Duration::from_millis(DEFAULT_RW_TIMEOUT))
+            .pool_max_idle_per_host(100)
+            .build()?;
 
         let mut wm_client = WmClient {
             _scheme: scheme.to_string(),
@@ -93,7 +91,7 @@ impl WmClient {
             _device_os_versions_map: Mutex::new(d_ovm),
             _device_oses: Mutex::new(d_oses),
             _ltime: "0".to_string(),
-            _agent: agent,
+            _http_client: http_client,
         };
 
         let info_res = wm_client.get_info();
@@ -112,19 +110,20 @@ impl WmClient {
 
     /// Returns the version of this Rust client API
     pub fn get_api_version(&self) -> &str {
-         "0.1.0"
+        "0.1.0"
     }
 
     /// sets the overall HTTP timeout in milliseconds
     pub fn set_http_timeout(&mut self, conn_timeout: u64, rw_timeout: u64) {
-        let agent = ureq::AgentBuilder::new()
-            .max_idle_connections_per_host(100)
-            .max_idle_connections(100)
-            .timeout_connect(Duration::from_millis(conn_timeout))
-            .timeout_read(Duration::from_millis(rw_timeout))
+        let http_client = reqwest::blocking::Client::builder()
+            .connect_timeout(Duration::from_millis(conn_timeout))
+            .timeout(Duration::from_millis(rw_timeout))
+            .pool_max_idle_per_host(100)
             .build();
 
-        self._agent = agent;
+        if http_client.is_ok() {
+            self._http_client = http_client.unwrap();
+        }
     }
 
     /// returns true if WURFL microservice exposes the static capability with name `cap_name`, false otherwise
@@ -150,27 +149,29 @@ impl WmClient {
     ///     println!("WURFL file info: {}", info.wurfl_info);
     pub fn get_info(&self) -> Result<JSONInfoData, WmError> {
         let url = self._create_url("/v2/getinfo/json");
-        match self._agent.get(url.as_str())
-            .set("content-type", DEFAULT_CONTENT_TYPE)
-            .call() {
-            Ok(res) => {
-                let info_res = res.into_json();
-                return if info_res.is_ok() {
-                    Ok(info_res.unwrap())
-                } else {
-                    Err(WmError { msg: "Unable to create Wurfl microservice client: could not parse server info".to_string() })
-                };
+        let response = self._http_client.get(url.as_str())
+            .header("content-type", DEFAULT_CONTENT_TYPE)
+            .header("User-Agent", self.get_wm_client_user_agent())
+            .send()?;
+
+        let info_res = response.json::<JSONInfoData>();
+        if info_res.is_ok() {
+            let info = info_res.unwrap();
+            let result = Ok(info);
+            return result;
+        } else {
+            let serde_err = info_res.err();
+            if serde_err.is_some() {
+                return Err(WmError { msg: serde_err.unwrap().to_string() });
+            } else {
+                return Err(WmError { msg: "Unable to parse JSON response".to_string() });
             }
-            Err(i_err) => {
-                return Err(WmError { msg: format!(" Unable to create Wurfl microservice client: {}", i_err.to_string()) });
-            }
-        };
+        }
     }
 
     /// lookup_useragent - Searches WURFL device data using the given user-agent for detection.
     /// Passing an empty string as user-agent will return a "generic" device.
     pub fn lookup_useragent(&mut self, user_agent: String) -> Result<JSONDeviceData, WmError> {
-
         let mut headers = HashMap::new();
         headers.insert("User-Agent".to_string(), user_agent);
         let cache_key = self._get_user_agent_cache_key(headers.clone()).unwrap();
@@ -371,23 +372,19 @@ impl WmClient {
     // Performs a GET request and returns the response body as a JSON String that can be unmarshalled
     fn _internal_get(&self, endpoint: String) -> Result<String, WmError> {
         let url = self._create_url(endpoint.as_str());
-        match self._agent.get(url.as_str()).set("content-type", DEFAULT_CONTENT_TYPE)
-            .call() {
-            Ok(res) => {
-                let result = res.into_string();
-                return if result.is_ok() {
-                    Ok(result.unwrap())
-                } else {
-                    let err = result.err().unwrap();
-                    let msg = format!("Unable to perform get for path {}. Error {}", url, err.to_string());
-                    Err(WmError { msg })
-                };
-            }
-            Err(e) => {
-                let msg = format!("Unable to perform get for path {}. Error {}", url, e.to_string());
-                return Err(WmError { msg });
-            }
-        }
+        let response = self._http_client.get(url.as_str())
+            .header("content-type", DEFAULT_CONTENT_TYPE)
+            .header("User-Agent", self.get_wm_client_user_agent())
+            .send()?;
+
+        let result = response.text();
+        return if result.is_ok() {
+            Ok(result.unwrap())
+        } else {
+            let err = result.err().unwrap();
+            let msg = format!("Unable to perform get for path {}. Error {}", url, err.to_string());
+            Err(WmError { msg })
+        };
     }
 
     /// set_requested_static_capabilities - set list of standard static capabilities to return with the detected device.
@@ -462,31 +459,15 @@ impl WmClient {
 
     fn _internal_lookup(&self, request: Request, path: String) -> Result<JSONDeviceData, WmError> {
         let url = self._create_url(path.as_str());
-        let json_req = ureq::json!(request);
-        let resp_res = self._agent.post(url.as_str())
-            .set("Content-type", DEFAULT_CONTENT_TYPE)
-            .set("User-Agent", self.get_wm_client_user_agent().as_str())
-            .send_json(json_req);
 
-        if resp_res.is_ok() {
-            let resp = resp_res.unwrap();
-            let reader = resp.into_reader();
-                let device_res: Result<JSONDeviceData, serde_json::Error> = serde_json::from_reader(reader);
-                if device_res.is_ok() {
-                    let device = device_res.unwrap();
-                    let result = Ok(device);
-                    return result;
-                } else {
-                    let serde_err = device_res.err();
-                    if serde_err.is_some() {
-                        return Err(WmError { msg: serde_err.unwrap().to_string() });
-                    } else {
-                        return Err(WmError { msg: "Unable to parse JSON response".to_string() });
-                    }
-                }
-        } else {
-            return Err(WmError { msg: resp_res.err().unwrap().to_string() });
-        }
+        let response = self._http_client.post(url.as_str())
+            .header("Content-type", DEFAULT_CONTENT_TYPE)
+            .header("User-Agent", self.get_wm_client_user_agent().as_str())
+            .json(&request)
+            .send()?;
+
+        let device = response.json::<JSONDeviceData>()?;
+        Ok(device)
     }
 
     fn _clear_caches_if_needed(&mut self, ltime: String) {
@@ -502,7 +483,7 @@ impl WmClient {
         if self._cache.is_some() {
             return self._cache.as_ref().unwrap().get_actual_sizes();
         }
-        return (0,0);
+        return (0, 0);
     }
 
     /// get_all_oses returns a vec<String> of all devices device_os capabilities in WM server
@@ -625,7 +606,7 @@ impl WmClient {
         let result = self.internal_get("/v2/alldeviceosversions/json");
         match result {
             Ok(res) => {
-                let res_string = res.into_string();
+                let res_string = res.text();
                 if res_string.is_ok() {
                     let os_vers_str = res_string.unwrap();
                     let _res: Result<Vec<JSONDeviceOsVersions>, serde_json::Error> = serde_json::from_str(os_vers_str.as_str());
@@ -679,15 +660,11 @@ impl WmClient {
 
     fn internal_get(&self, path: &str) -> Result<Response, WmError> {
         let full_url = self._create_url(path);
-        match self._agent.get(full_url.as_str()).set("content-type", DEFAULT_CONTENT_TYPE)
-            .call() {
-            Ok(res) => {
-                Ok(res)
-            }
-            Err(i_err) => {
-                Err(WmError { msg: format!(" Unable to get data from {}: {}", full_url, i_err.to_string()) })
-            }
-        }
+        let response = self._http_client.get(full_url.as_str())
+            .header("content-type", DEFAULT_CONTENT_TYPE)
+            .header("content-type", self.get_wm_client_user_agent())
+            .send()?;
+        Ok(response)
     }
 
     fn _load_device_makes_data(&self) -> Option<WmError> {
@@ -708,7 +685,7 @@ impl WmClient {
         let all_devices_res = self.internal_get("/v2/alldevices/json");
         match all_devices_res {
             Ok(res) => {
-                let res_string = res.into_string();
+                let res_string = res.text();
                 if res_string.is_ok() {
                     let _res: Result<Vec<JSONMakeModel>, serde_json::Error> = serde_json::from_str(res_string.unwrap().as_str());
                     if _res.is_ok() {
