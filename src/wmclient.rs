@@ -38,14 +38,14 @@ pub struct WmClient {
     _cache: Option<Cache>,
     // Maps concat headers (mainly UA) -> JSONDeviceData
     // Stores the result of time consuming call getAllMakeModel
-    _make_models: Mutex<Vec<JSONMakeModel>>,
+    _make_models: RwLock<Vec<JSONMakeModel>>,
     // List of device manufacturers
-    _device_makes: Mutex<Vec<String>>,
-    _device_makes_map: Mutex<HashMap<String, Vec<JSONModelMktName>>>,
+    _device_makes: RwLock<Vec<String>>,
+    _device_makes_map: RwLock<HashMap<String, Vec<JSONModelMktName>>>,
     // Map that associates os name to JSONDeviceOsVersions objects
-    _device_os_versions_map: Mutex<HashMap<String, Vec<String>>>,
+    _device_os_versions_map: RwLock<HashMap<String, Vec<String>>>,
     // List of all device OSes
-    _device_oses: Mutex<Vec<String>>,
+    _device_oses: RwLock<Vec<String>>,
     _ltime: String,
     _http_client: reqwest::blocking::Client,
 }
@@ -85,11 +85,11 @@ impl WmClient {
             requested_virtual_caps: Some(req_v_cap),
             important_headers: i_h,
             _cache: None,
-            _make_models: Mutex::new(mk_md),
-            _device_makes: Mutex::new(d_mk),
-            _device_makes_map: Mutex::new(d_mm),
-            _device_os_versions_map: Mutex::new(d_ovm),
-            _device_oses: Mutex::new(d_oses),
+            _make_models: RwLock::new(mk_md),
+            _device_makes: RwLock::new(d_mk),
+            _device_makes_map: RwLock::new(d_mm),
+            _device_os_versions_map: RwLock::new(d_ovm),
+            _device_oses: RwLock::new(d_oses),
             _ltime: "0".to_string(),
             _http_client: http_client,
         };
@@ -305,29 +305,29 @@ impl WmClient {
 
         // the following calls clear frequently used "enumeration fields" which is very time consuming
         // to download every time
-        let mk_md_lock_res = self._make_models.lock();
+        let mk_md_lock_res = self._make_models.write();
         if mk_md_lock_res.is_ok() {
             let mut make_models = mk_md_lock_res.unwrap();
             make_models.clear();
         }
 
-        let dev_makes_lock_guard = self._device_makes.lock();
+        let dev_makes_lock_guard = self._device_makes.write();
         if dev_makes_lock_guard.is_ok() {
             let mut device_makes = dev_makes_lock_guard.unwrap();
             device_makes.clear();
-            let dev_makes_map_guard = self._device_makes_map.lock();
+            let dev_makes_map_guard = self._device_makes_map.write();
             if dev_makes_map_guard.is_ok() {
                 dev_makes_map_guard.unwrap().clear();
             }
         }
 
-        let dev_os_lock_res = self._device_oses.lock();
+        let dev_os_lock_res = self._device_oses.write();
         if dev_os_lock_res.is_ok() {
             let mut device_oses = dev_os_lock_res.unwrap();
             device_oses.clear();
         }
 
-        let os_ver_map_lock_res = self._device_os_versions_map.lock();
+        let os_ver_map_lock_res = self._device_os_versions_map.write();
         if os_ver_map_lock_res.is_ok() {
             let mut os_ver_map = os_ver_map_lock_res.unwrap();
             os_ver_map.clear();
@@ -494,7 +494,7 @@ impl WmClient {
             return Err(wm_err);
         }
 
-        let os_guard = self._device_oses.lock();
+        let os_guard = self._device_oses.read();
         if os_guard.is_ok() {
             let vec = os_guard.unwrap();
             let ret_val = vec.to_vec();
@@ -515,7 +515,7 @@ impl WmClient {
             return Err(wm_err);
         }
 
-        let os_ver_map_guard = self._device_os_versions_map.lock();
+        let os_ver_map_guard = self._device_os_versions_map.read();
         if os_ver_map_guard.is_ok() {
             let os_ver_map = os_ver_map_guard.unwrap();
             if os_ver_map.contains_key(os_name) {
@@ -544,7 +544,7 @@ impl WmClient {
             return Err(wm_err);
         }
 
-        let guard = self._device_makes.lock();
+        let guard = self._device_makes.read();
         if guard.is_ok() {
             let vec = guard.unwrap();
             let ret_val = vec.to_vec();
@@ -564,7 +564,7 @@ impl WmClient {
             return Err(wm_err);
         }
 
-        let guard = self._device_makes_map.lock();
+        let guard = self._device_makes_map.read();
         if guard.is_ok() {
             let device_makes_map = guard.unwrap();
             let vec_opt = device_makes_map.get(brand_name.as_str());
@@ -589,7 +589,7 @@ impl WmClient {
     }
 
     fn _load_device_os_data(&self) -> Option<WmError> {
-        let os_guard = self._device_oses.lock();
+        let os_guard = self._device_oses.read();
         if os_guard.is_ok() {
             let os_vec = os_guard.unwrap();
             if !os_vec.is_empty() {
@@ -642,7 +642,7 @@ impl WmClient {
         }
 
         // we now use the keys of the map (all OSes) to fill the OSes vector
-        let dev_os_guard = self._device_oses.lock();
+        let dev_os_guard = self._device_oses.write();
         let mut os_vec = dev_os_guard.unwrap();
         os_vec.clear();
         let keys = ov_map.keys();
@@ -651,7 +651,7 @@ impl WmClient {
         }
 
         // fill the wm client field with the results of the previous process
-        let dev_os_ver_map_guard = self._device_os_versions_map.lock();
+        let dev_os_ver_map_guard = self._device_os_versions_map.write();
         let mut dev_os_ver_map = dev_os_ver_map_guard.unwrap();
         dev_os_ver_map.clear();
         dev_os_ver_map.extend(ov_map);
@@ -669,7 +669,7 @@ impl WmClient {
 
     fn _load_device_makes_data(&self) -> Option<WmError> {
         // We lock the shared makeModel cache
-        let dev_makes_guard = self._device_makes.lock();
+        let dev_makes_guard = self._device_makes.read();
         if !dev_makes_guard.is_ok() {
             let err = dev_makes_guard.err().unwrap();
             return Some(WmError { msg: format!("Cannot download device makes data: {}", err.to_string()) });
@@ -725,7 +725,7 @@ impl WmClient {
                 model_market_vec.push(md_mk_name);
             }
         }
-        let dev_makes_guard = self._device_makes.lock();
+        let dev_makes_guard = self._device_makes.write();
         let mut dev_makes_vec = dev_makes_guard.unwrap();
         dev_makes_vec.clear();
         let keys = dev_makes_map.keys();
@@ -733,7 +733,7 @@ impl WmClient {
             dev_makes_vec.push(k.to_string());
         }
         // fill the wm client field with the results of the previous process
-        let dev_make_model_map_guard = self._device_makes_map.lock();
+        let dev_make_model_map_guard = self._device_makes_map.write();
         // We can unwrap safely since we know we created it.
         let mut dev_make_model_map = dev_make_model_map_guard.unwrap();
         dev_make_model_map.clear();

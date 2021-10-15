@@ -1,33 +1,34 @@
 pub struct Cache {
-    _ua_cache: Arc<Mutex<LruCache<String, JSONDeviceData>>>,
-    _dev_id_cache: Arc<Mutex<LruCache<String, JSONDeviceData>>>,
+    _ua_cache: RwLock<LruCache<String, JSONDeviceData>>,
+    _dev_id_cache: RwLock<LruCache<String, JSONDeviceData>>,
 }
 
 impl Cache {
     pub fn new(max_size: usize) -> Cache {
         Cache {
-            _ua_cache: Arc::new(Mutex::new(LruCache::new(max_size))),
-            _dev_id_cache: Arc::new(Mutex::new(LruCache::new(20000))),
+            _ua_cache: RwLock::new(LruCache::new(max_size)),
+            _dev_id_cache: RwLock::new(LruCache::new(20000)),
         }
     }
 
     pub fn clear(&self) {
-        // weird: seems that mutex guard must be mutable if its content is mutable.
-        let mut guard = self._ua_cache.lock().unwrap();
-        guard.clear();
-        drop(guard);
+        {
+            let mut l_ua_cache = self._ua_cache.write().unwrap();
+            l_ua_cache.clear();
+        }
 
-        let mut did_guard = self._dev_id_cache.lock().unwrap();
-        did_guard.clear();
-        drop(did_guard);
+        {
+            let mut l_did_cache = self._dev_id_cache.write().unwrap();
+            l_did_cache.clear();
+        }
     }
 
     pub fn get_actual_sizes(&self) -> (usize, usize) {
-        let ua_guard = self._ua_cache.lock().unwrap();
+        let ua_guard = self._ua_cache.read().unwrap();
         let ua_size = ua_guard.len();
         drop(ua_guard);
 
-        let did_guard = self._dev_id_cache.lock().unwrap();
+        let did_guard = self._dev_id_cache.read().unwrap();
         let did_size = did_guard.len();
         drop(did_guard);
 
@@ -52,8 +53,8 @@ impl Cache {
     }
 }
 
-fn _internal_get(cache: &Arc<Mutex<LruCache<String, JSONDeviceData>>>, key: String) -> Option<JSONDeviceData> {
-    let mut cache_guard = cache.lock().unwrap();
+fn _internal_get(cache: &RwLock<LruCache<String, JSONDeviceData>>, key: String) -> Option<JSONDeviceData> {
+    let mut cache_guard = cache.write().unwrap();
 
         let opt = cache_guard.get(&key);
         if opt.is_some() {
@@ -64,8 +65,8 @@ fn _internal_get(cache: &Arc<Mutex<LruCache<String, JSONDeviceData>>>, key: Stri
         return None;
 }
 
-fn _internal_put(cache: &Arc<Mutex<LruCache<String, JSONDeviceData>>>, key: String, value: JSONDeviceData) {
-    let mut cache_guard = cache.lock().unwrap();
+fn _internal_put(cache: &RwLock<LruCache<String, JSONDeviceData>>, key: String, value: JSONDeviceData) {
+    let mut cache_guard = cache.write().unwrap();
     cache_guard.put(key, value);
 }
 

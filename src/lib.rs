@@ -1,7 +1,7 @@
 use lru::LruCache;
 use std::collections::HashMap;
 use std::str::from_utf8;
-use std::sync::{Arc, Mutex};
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::Duration;
 use reqwest::blocking::Response;
 use reqwest::Error;
