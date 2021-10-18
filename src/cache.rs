@@ -54,6 +54,8 @@ impl Cache {
 }
 
 fn _internal_get(cache: &RwLock<LruCache<String, JSONDeviceData>>, key: String) -> Option<JSONDeviceData> {
+    // TODO: fix this. We should use cache.read() the get a read lock, but this does not compile due
+    // to DerefMut not being implemented by the RwLock
     let mut cache_guard = cache.write().unwrap();
 
         let opt = cache_guard.get(&key);
