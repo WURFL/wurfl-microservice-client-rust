@@ -54,6 +54,7 @@ impl WmClient {
     /// Creates a new instance of the WURFL microservice client.
     /// Basic usage:
     /// ```no_run
+    /// use wmclient::WmClient;
     /// let client = WmClient::new("http", "localhost", "8080", "");
     /// ```
     pub fn new(scheme: &str, host: &str, port: &str, base_uri: &str) -> Result<WmClient, WmError> {
