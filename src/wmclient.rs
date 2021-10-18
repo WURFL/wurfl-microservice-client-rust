@@ -142,7 +142,7 @@ impl WmClient {
     /// ```no_run
     /// use wmclient::WmClient;
     /// let client = WmClient::new("http", "localhost", "8080", "");
-    /// let info_res = client.get_info();
+    /// let info_res = client.unwrap().get_info();
     ///     if info_res.is_err(){
     ///         // handle error...
     ///     }
