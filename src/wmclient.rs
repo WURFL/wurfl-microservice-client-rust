@@ -140,6 +140,8 @@ impl WmClient {
     /// Returns a struct containing info about the running WURFL Microservice server to which this client is connected
     /// Basic usage:
     /// ```no_run
+    /// use wmclient::WmClient;
+    /// let client = WmClient::new("http", "localhost", "8080", "");
     /// let info_res = client.get_info();
     ///     if info_res.is_err(){
     ///         // handle error...
