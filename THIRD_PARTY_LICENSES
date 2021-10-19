@@ -1,3 +1,9 @@
 lru - https://crates.io/crates/lru - MIT License
-ureq - https://crates.io/crates/ureq - MIT and Apache 2.0
+reqwest - https://crates.io/crates/reqwest - Apache 2.0
+openssl - https://crates.io/crates/openssl - Apache 2.0
+serde - https://crates.io/crates/serde - MIT/Apache 2.0
+thiserror - https://crates.io/crates/thiserror - MIT/Apache 2.0
+md5 - https://crates.io/crates/md5 - MIT/Apache 2.0
+hyper - https://crates.io/crates/hyper - MIT license
+tokio - https://crates.io/crates/tokio - MIT license
 

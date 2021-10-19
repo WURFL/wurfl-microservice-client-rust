@@ -8,10 +8,9 @@ homepage = "https://www.scientiamobile.com"
 repository = "https://github.com/WURFL/wurfl-microservice-client-rust"
 readme = "README.md"
 description = "WURFL Microservice (by ScientiaMobile, Inc.) is a mobile device detection service that can quickly and accurately detect over 500 capabilities of visiting devices. It can differentiate between portable mobile devices, desktop devices, SmartTVs and any other types of devices that have a web browser."
-
+exclude = ["/tests", "/examples"]
 
 [dependencies]
-#ureq = { version = "2.2.0", features = ["json", "charset"] }
 reqwest = { version = "0.10", features = ["blocking", "json"] }
 openssl = { version = "^0.10", features = ["vendored"] }
 lru = "0.7.0"

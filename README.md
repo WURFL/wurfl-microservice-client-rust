@@ -161,3 +161,8 @@ fn main() {
     }
 }
 ```
+
+# Crates.io distribution note
+`wmclient` package distributed via [crates.io](https://crates.io/search?q=wmclient) does **not** contain unit tests or examples.
+If you need run the tests please clone the GitHub repo or, if you need the code of a specific release, download the zip file 
+on [GitHub release page](https://github.com/WURFL/wurfl-microservice-client-rust/releases) 
