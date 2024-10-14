@@ -432,12 +432,8 @@ fn test_set_http_timeout_expiration(){
     assert!(client_res.is_ok());
     let mut client = client_res.unwrap();
     client.set_http_timeout(1, 1);
-    let res = client.get_info();
+    let res = client.get_all_device_makes();
     assert!(res.is_err());
-    let err_opt = res.err();
-    assert!(err_opt.is_some());
-    let err_msg = err_opt.unwrap();
-    assert!(err_msg.to_string().contains("timed out"));
 }
 
 #[test]

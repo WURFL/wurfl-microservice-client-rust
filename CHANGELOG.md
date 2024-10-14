@@ -1,3 +1,6 @@
+### 0.2.0
+- Updated rust edition used and project dependencies
+
 ### 0.1.1
 - Added changelog. Small documentation changes
 
