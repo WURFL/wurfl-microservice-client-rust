@@ -665,7 +665,7 @@ impl WmClient {
         let full_url = self._create_url(path);
         let response = self._http_client.get(full_url.as_str())
             .header("content-type", DEFAULT_CONTENT_TYPE)
-            .header("content-type", self.get_wm_client_user_agent())
+            .header("User-Agent", self.get_wm_client_user_agent())
             .send()?;
         Ok(response)
     }
