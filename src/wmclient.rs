@@ -111,7 +111,7 @@ impl WmClient {
 
     /// Returns the version of this Rust client API
     pub fn get_api_version(&self) -> &str {
-        "0.2.0"
+        "0.2.1"
     }
 
     /// sets the overall HTTP timeout in milliseconds
@@ -289,7 +289,7 @@ impl WmClient {
         if device_res.is_ok() {
             let device = device_res.unwrap();
             // check if server WURFL.xml has been updated and, if so, clear caches
-            self._clear_caches_if_needed(self._ltime.clone());
+            self._clear_caches_if_needed(device.ltime.clone());
             if self._cache.is_some() {
                 self._cache.as_ref().unwrap().put(USERAGENT_CACHE_TYPE.to_string(), cache_key, device.clone());
             }
@@ -665,7 +665,7 @@ impl WmClient {
         let full_url = self._create_url(path);
         let response = self._http_client.get(full_url.as_str())
             .header("content-type", DEFAULT_CONTENT_TYPE)
-            .header("content-type", self.get_wm_client_user_agent())
+            .header("User-Agent", self.get_wm_client_user_agent())
             .send()?;
         Ok(response)
     }

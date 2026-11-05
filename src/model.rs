@@ -10,6 +10,7 @@ pub struct JSONInfoData {
     pub important_headers: Vec<String>,
     pub static_caps: Vec<String>,
     pub virtual_caps: Vec<String>,
+    #[serde(default)]
     ltime: String,
 }
 
@@ -17,8 +18,12 @@ pub struct JSONInfoData {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct JSONDeviceData {
     pub capabilities: HashMap<String, String>,
+    // WM server >= 2.18.0 omits "error" on success, so it must default to an empty string
+    #[serde(default)]
     pub error: String,
+    #[serde(default)]
     pub mtime: i64,
+    #[serde(default)]
     pub ltime: String,
 }
 
