@@ -289,7 +289,7 @@ impl WmClient {
         if device_res.is_ok() {
             let device = device_res.unwrap();
             // check if server WURFL.xml has been updated and, if so, clear caches
-            self._clear_caches_if_needed(self._ltime.clone());
+            self._clear_caches_if_needed(device.ltime.clone());
             if self._cache.is_some() {
                 self._cache.as_ref().unwrap().put(USERAGENT_CACHE_TYPE.to_string(), cache_key, device.clone());
             }

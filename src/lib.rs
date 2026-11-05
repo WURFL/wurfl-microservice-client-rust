@@ -8,3 +8,6 @@ use reqwest::Error;
 include!("./wmclient.rs");
 include!("./model.rs");
 include!("./cache.rs");
+
+#[cfg(test)]
+mod wmclient_internal_test;
